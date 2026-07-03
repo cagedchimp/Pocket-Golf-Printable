@@ -297,6 +297,44 @@
     }
   };
 
+  /* ------------------------------------------------------------------ *
+   * Wonders — rare hidden landmarks. At most one per course; spotting   *
+   * it in play mode earns a free mulligan (like Bigfoot always has).    *
+   * ------------------------------------------------------------------ */
+
+  // weight: relative odds among the wonders eligible for the theme.
+  // themes: null = anywhere; otherwise only these theme keys.
+  // habitat: the terrain the wonder hides on.
+  var WONDERS = {
+    bigfoot: { label: 'Bigfoot', weight: 12, themes: null, habitat: ROUGH },
+    gnome:   { label: 'the garden gnome', weight: 12, themes: null, habitat: ROUGH },
+    castle:  { label: 'the old castle', weight: 5,
+               themes: ['classic', 'forest', 'highlands'], habitat: ROUGH },
+    ufo:     { label: 'a UFO', weight: 3,
+               themes: ['classic', 'dunes', 'highlands'], habitat: ROUGH },
+    kraken:  { label: 'the kraken', weight: 2,
+               themes: ['lakeside'], habitat: WATER }
+  };
+
+  // About 1/3 of courses get a wonder; which one is a weighted pick
+  // among those at home in the theme, so e.g. the kraken only ever
+  // surfaces on lakeside courses — and rarely even there.
+  function rollWonder(rng, themeKey) {
+    if (rng() >= 1 / 3) return null;
+    var keys = Object.keys(WONDERS).filter(function (k) {
+      var w = WONDERS[k].themes;
+      return !w || w.indexOf(themeKey) >= 0;
+    });
+    var total = 0;
+    keys.forEach(function (k) { total += WONDERS[k].weight; });
+    var r = rng() * total;
+    for (var i = 0; i < keys.length; i++) {
+      r -= WONDERS[keys[i]].weight;
+      if (r < 0) return keys[i];
+    }
+    return keys[keys.length - 1];
+  }
+
   function rollN(rng, range, ease) {
     var n = range[0] + ri(rng, range[1] - range[0] + 1);
     return Math.round(n * ease);
@@ -304,6 +342,32 @@
   function rollSize(rng, range, ease) {
     return Math.max(2, Math.round((range[0] + ri(rng, range[1] - range[0] + 1)) * ease));
   }
+
+  /* ------------------------------------------------------------------ *
+   * Difficulty — how demanding a course is to score on                  *
+   * ------------------------------------------------------------------ */
+
+  // minBest/maxBest gate the solver's optimal stroke count per hole
+  // (tough holes can't be reached in 3 perfect shots). density scales
+  // hazard counts. moat/island/wideWater are per-hole odds of water
+  // features that guard the green or demand bigger carries.
+  //
+  // IMPORTANT: standard must add no RNG draws and scale nothing, so
+  // that courses from pre-difficulty share links come out identical.
+  var DIFFICULTIES = {
+    casual: {
+      label: 'Casual', mulligans: 8, density: 0.75,
+      minBest: 3, maxBest: 3, moat: 0, island: 0, wideWater: 0
+    },
+    standard: {
+      label: 'Standard', mulligans: 6, density: 1,
+      minBest: 3, maxBest: 6, moat: 0, island: 0, wideWater: 0
+    },
+    tough: {
+      label: 'Tough', mulligans: 4, density: 1.3,
+      minBest: 4, maxBest: 6, moat: 0.45, island: 0.18, wideWater: 0.5
+    }
+  };
 
   /* ------------------------------------------------------------------ *
    * Hole generation                                                     *
@@ -315,9 +379,11 @@
   // where a course architect would put them — bunkers guarding the
   // green, trees lining the fairway and filling dogleg elbows, and
   // creeks cutting across the line of play.
-  function buildHoleAttempt(rng, ease, theme) {
+  function buildHoleAttempt(rng, ease, theme, diff) {
     var cells = new Array(W * H).fill(ROUGH);
     var slope = new Array(W * H).fill(-1);
+    // Hazard-count scaling for the difficulty tier (identity on standard).
+    function dens(n) { return Math.round(n * diff.density); }
 
     // Tee near one short edge, cup near the other; flip half the time
     // so the course alternates visual direction.
@@ -411,7 +477,7 @@
         }
       }
     }
-    var nGS = rollN(rng, theme.greenSandN, 1);
+    var nGS = dens(rollN(rng, theme.greenSandN, 1));
     for (i = 0; i < nGS && greenAdj.length; i++) {
       growBlob(rng, cells, pick(rng, greenAdj), rollSize(rng, theme.sandSize, 1), SAND,
         function (x, y) {
@@ -421,7 +487,7 @@
     }
 
     // Fairway bunkers pinch the ribbon's edges.
-    var nFB = rollN(rng, theme.fwSandN, ease);
+    var nFB = dens(rollN(rng, theme.fwSandN, ease));
     for (i = 0; i < nFB && endK > startK; i++) {
       k = startK + ri(rng, endK - startK + 1);
       var side = rng() < 0.5 ? -1 : 1;
@@ -435,7 +501,7 @@
 
     // Trees line the fairway, seeded just off the ribbon's shoulders.
     var treeAllowed = function (x, y) { return isRough(x, y) && offCorridor(x, y); };
-    var nT = rollN(rng, theme.treeN, ease);
+    var nT = dens(rollN(rng, theme.treeN, ease));
     for (i = 0; i < nT && endK > startK; i++) {
       k = startK + ri(rng, endK - startK + 1);
       side = rng() < 0.5 ? -1 : 1;
@@ -454,11 +520,14 @@
 
     // Creek: a water band cutting across the line of play. You can
     // fly over water but never land in it, so this demands a carry.
-    if (endK > startK + 5 && rng() < theme.creek * (0.5 + 0.5 * ease)) {
+    if (endK > startK + 5 && rng() < theme.creek * (0.5 + 0.5 * ease) * diff.density) {
       k = startK + 2 + ri(rng, endK - startK - 4);
       var cc = centerline[k];
       var half = 3 + ri(rng, 3);
-      var rows = rng() < theme.creekWide ? 2 : 1;
+      var rows = rng() < theme.creekWide + diff.wideWater ? 2 : 1;
+      // On tiers with wideWater, a wide creek sometimes swells to three
+      // rows — a carry that a mid roll can't clear.
+      if (rows === 2 && diff.wideWater > 0 && rng() < 0.4) rows = 3;
       for (var rr = 0; rr < rows; rr++) {
         for (var t4 = -half; t4 <= half; t4++) {
           var wx = cc[0] + t4, wy = cc[1] + rr;
@@ -471,12 +540,48 @@
       }
     }
     // Ponds flank the hole, off the playing corridor.
-    var nP = rollN(rng, theme.pondN, ease);
+    var nP = dens(rollN(rng, theme.pondN, ease));
     for (i = 0; i < nP; i++) {
       placeBlob(rng, cells, rollSize(rng, theme.pondSize, ease), WATER, function (x, y) {
         return isRough(x, y) && offCorridor(x, y) &&
           !nearPt(x, y, tee, 2) && !nearPt(x, y, cup, 2);
       });
+    }
+
+    // Greenside moat (tough tiers): a water band across the approach,
+    // closer to the cup than a creek is ever allowed, so reaching the
+    // green demands a genuine carry.
+    if (diff.moat > 0 && L > 6 && rng() < diff.moat * ease) {
+      var mc = centerline[L - 4];
+      var mHalf = 2 + ri(rng, 3);
+      for (var mt = -mHalf; mt <= mHalf; mt++) {
+        var mx = mc[0] + mt, my = mc[1];
+        if (!inBounds(mx, my)) continue;
+        var mct = cells[idx(mx, my)];
+        if (mct !== ROUGH && mct !== FAIRWAY) continue;
+        if (nearPt(mx, my, tee, 2) || nearPt(mx, my, cup, 1)) continue;
+        cells[idx(mx, my)] = WATER;
+      }
+    }
+
+    // Island green (tough tiers, rare): ring the green's fringe with
+    // water — the green must be hit exactly, no lay-up-and-putt. Any
+    // greenside bunker already placed stays as a lucky bail-out.
+    if (diff.island > 0 && rng() < diff.island * ease) {
+      for (var gy = 0; gy < H; gy++) {
+        for (var gx = 0; gx < W; gx++) {
+          var gt = cells[idx(gx, gy)];
+          if (gt !== ROUGH && gt !== FAIRWAY) continue;
+          if (nearPt(gx, gy, tee, 2)) continue;
+          for (var gd = 0; gd < 8; gd++) {
+            var ex = gx + DIRS[gd][0], ey = gy + DIRS[gd][1];
+            if (inBounds(ex, ey) && cells[idx(ex, ey)] === GREEN) {
+              cells[idx(gx, gy)] = WATER;
+              break;
+            }
+          }
+        }
+      }
     }
 
     // Slopes: short runs of arrows laid perpendicular to their
@@ -503,24 +608,29 @@
     slope[idx(tee.x, tee.y)] = -1;
     slope[idx(cup.x, cup.y)] = -1;
 
-    return { w: W, h: H, cells: cells, slope: slope, tee: tee, hole: cup, bigfoot: null };
+    return { w: W, h: H, cells: cells, slope: slope, tee: tee, hole: cup, wonder: null };
   }
 
-  function generateHole(rng, theme) {
+  function generateHole(rng, theme, diff) {
     theme = theme || THEMES.classic;
+    diff = diff || DIFFICULTIES.standard;
     for (var attempt = 0; attempt < 300; attempt++) {
       // Back off obstacle density if we keep failing, so generation
       // always terminates with a playable hole.
       var ease = attempt < 60 ? 1 : Math.max(0.15, 1 - (attempt - 60) / 120);
-      var hole = buildHoleAttempt(rng, ease, theme);
+      // The difficulty's stroke floor also relaxes late: better a
+      // slightly-too-easy hole than generation that never terminates.
+      var minBest = attempt < 150 ? diff.minBest : 3;
+      var maxBest = attempt < 150 ? diff.maxBest : 6;
+      var hole = buildHoleAttempt(rng, ease, theme, diff);
       var best = solve(hole);
-      if (best !== null && best >= 3 && best <= 6) {
+      if (best !== null && best >= minBest && best <= maxBest) {
         hole.best = best;
         return hole;
       }
     }
     // Practically unreachable: an empty hole is always solvable.
-    var fallback = buildHoleAttempt(rng, 0, theme);
+    var fallback = buildHoleAttempt(rng, 0, theme, diff);
     fallback.best = solve(fallback);
     return fallback;
   }
@@ -538,13 +648,18 @@
   var NAME_C = ['Golf Club', 'Links', 'Country Club', 'Golf Course',
     'Municipal Links', 'G.C.'];
 
-  function generateCourse(seedStr, numHoles, themeKey) {
+  function generateCourse(seedStr, numHoles, themeKey, diffKey) {
     numHoles = numHoles || 18;
     var theme = THEMES[themeKey] || THEMES.classic;
     themeKey = THEMES[themeKey] ? themeKey : 'classic';
-    // Theme is part of the seed so the same seed string gives a
-    // different (but still reproducible) course per theme.
-    var seedFn = xmur3(themeKey + '|' + String(seedStr));
+    var diff = DIFFICULTIES[diffKey] || DIFFICULTIES.standard;
+    diffKey = DIFFICULTIES[diffKey] ? diffKey : 'standard';
+    // Theme — and any non-standard difficulty — are part of the seed
+    // so the same seed string gives a different (but reproducible)
+    // course per combination. Standard adds nothing, so share links
+    // that predate difficulty tiers keep producing identical courses.
+    var seedName = themeKey + (diffKey === 'standard' ? '' : '|' + diffKey);
+    var seedFn = xmur3(seedName + '|' + String(seedStr));
     var rng = mulberry32(seedFn());
 
     // Themed courses draw their middle name from the theme's pool.
@@ -554,25 +669,50 @@
     var name = pick(rng, NAME_A) + ' ' + pick(rng, nounPool) + ' ' + pick(rng, NAME_C);
 
     var holes = [];
-    for (var i = 0; i < numHoles; i++) holes.push(generateHole(rng, theme));
+    for (var i = 0; i < numHoles; i++) holes.push(generateHole(rng, theme, diff));
 
-    // In about 1/3 of courses, Bigfoot hides on one hole (free Mulligan!).
-    if (rng() < 1 / 3) {
-      var hb = pick(rng, holes);
-      for (var tries = 0; tries < 100; tries++) {
-        var bx = 1 + ri(rng, W - 2), by = 1 + ri(rng, H - 2);
-        var far = Math.max(Math.abs(bx - hb.tee.x), Math.abs(by - hb.tee.y)) > 3 &&
-                  Math.max(Math.abs(bx - hb.hole.x), Math.abs(by - hb.hole.y)) > 3;
-        if (hb.cells[idx(bx, by)] === ROUGH && hb.slope[idx(bx, by)] < 0 && far) {
-          hb.bigfoot = { x: bx, y: by };
-          break;
+    // Maybe hide a wonder on one hole (free mulligan when spotted).
+    var wonderKey = rollWonder(rng, themeKey);
+    if (wonderKey) {
+      var habitat = WONDERS[wonderKey].habitat;
+      // Only holes that actually have the wonder's habitat qualify
+      // (a kraken needs water to lurk in).
+      var lairs = holes.filter(function (h) { return h.cells.indexOf(habitat) >= 0; });
+      if (lairs.length) {
+        var hb = pick(rng, lairs);
+        for (var tries = 0; tries < 100; tries++) {
+          var bx = 1 + ri(rng, W - 2), by = 1 + ri(rng, H - 2);
+          var far = Math.max(Math.abs(bx - hb.tee.x), Math.abs(by - hb.tee.y)) > 3 &&
+                    Math.max(Math.abs(bx - hb.hole.x), Math.abs(by - hb.hole.y)) > 3;
+          if (hb.cells[idx(bx, by)] === habitat && hb.slope[idx(bx, by)] < 0 && far) {
+            hb.wonder = { key: wonderKey, x: bx, y: by };
+            break;
+          }
         }
       }
     }
 
+    // Star rating (1-3) from measured stats: how far optimal play sits
+    // above 3 strokes, and how much hazard the course actually carries.
+    var sumBest = 0, hazard = 0;
+    holes.forEach(function (h) {
+      sumBest += h.best;
+      h.cells.forEach(function (c) {
+        if (c === WATER || c === TREE) hazard++;
+        else if (c === SAND) hazard += 0.5;
+      });
+    });
+    var avgBest = sumBest / holes.length;
+    var hazardPerHole = hazard / holes.length;
+    var rating = 1;
+    if (avgBest > 3.15 || hazardPerHole > 30) rating = 2;
+    if (avgBest > 3.7) rating = 3;
+
     return {
       name: name, seed: String(seedStr), theme: themeKey,
-      themeLabel: theme.label, holes: holes, par: numHoles * 6
+      themeLabel: theme.label, holes: holes, par: numHoles * 6,
+      difficulty: diffKey, difficultyLabel: diff.label,
+      mulligans: diff.mulligans, rating: rating
     };
   }
 
@@ -581,6 +721,8 @@
     ROUGH: ROUGH, FAIRWAY: FAIRWAY, SAND: SAND, WATER: WATER, TREE: TREE, GREEN: GREEN,
     DIRS: DIRS,
     THEMES: THEMES,
+    WONDERS: WONDERS,
+    DIFFICULTIES: DIFFICULTIES,
     generateCourse: generateCourse,
     generateHole: generateHole,
     solve: solve,

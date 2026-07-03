@@ -37,8 +37,11 @@ plain HTML/CSS/JS served as static files.
   inside generation logic (UI-side die rolls are fine).
 - **Solvability**: every generated hole must be finishable in 3–6
   optimal strokes (`solve()` gates generation).
-- **Shareable URLs**: seed, theme, holes, and `play=1` live in the query
-  string; keep `syncURL()`/boot restore in sync when adding state.
+- **Shareable URLs**: seed, theme, diff, holes, and `play=1` live in the
+  query string; keep `syncURL()`/boot restore in sync when adding state.
+  Standard difficulty must add no RNG draws and scale nothing during
+  generation, so pre-difficulty share links keep producing identical
+  courses (see `DIFFICULTIES` in golf.js).
 - **Browser + Node**: `golf.js` must keep working in both environments.
 - **Print layout**: the printable sheets must stay intact — play mode
   hides them on screen but `@media print` shows them again, so a user
@@ -52,8 +55,15 @@ Straight-line moves in 8 directions, distance = d6 roll. Fairway +1 and
 may fly over trees; sand −1; rough/green exact; water and trees can be
 flown over but never landed on; slope arrows carry the ball after
 landing; a putt (1 space, or 1–2 on the green) is always allowed instead
-of the roll. Par 6 every hole; 6 mulligans per course; Bigfoot grants a
-free mulligan.
+of the roll. Par 6 every hole; mulligans per course come from the
+difficulty tier (Casual 8 / Standard 6 / Tough 4). Difficulty also
+gates each hole's optimal stroke count (Casual exactly 3, Tough 4-6),
+scales hazard density, and on Tough adds greenside moats, island
+greens, and wider creeks; every course gets a measured 1-3 star
+rating printed on the title card. About 1/3 of
+courses hide a **wonder** on one hole (Bigfoot, gnome, castle, UFO,
+kraken — the `WONDERS` registry in golf.js; some are theme-restricted
+and rarer than others); tapping it in play mode earns a free mulligan.
 
 ## Deploy
 

@@ -35,6 +35,12 @@ dependencies.
   - [Lakeside](https://cagedchimp.github.io/Pocket-Golf-Printable/?seed=demo-course&theme=lakeside&holes=18)
   - [Sandy Dunes](https://cagedchimp.github.io/Pocket-Golf-Printable/?seed=demo-course&theme=dunes&holes=18)
   - [Highlands](https://cagedchimp.github.io/Pocket-Golf-Printable/?seed=demo-course&theme=highlands&holes=18)
+- **Difficulty** — Casual, Standard, or Tough. Tough courses can't be
+  reached in 3 perfect strokes, pile on hazards — greenside moats,
+  island greens, creeks too wide for a mid roll — and allow only 4
+  mulligans (Casual allows 8). Every course shows a measured ★☆☆-★★★
+  rating on its title page. Try
+  [Lakeside on Tough](https://cagedchimp.github.io/Pocket-Golf-Printable/?seed=demo-course&theme=lakeside&diff=tough&holes=18).
 - **Holes** — 9 or 18.
 - **Paper** — Letter (quarters are 4.25 × 5.5 in) or A4 (quarters are
   exactly A6).
@@ -42,9 +48,10 @@ dependencies.
   printing it. Roll the virtual d6, then tap one of the highlighted
   spots to hit the ball there: solid rings are your full shot
   (fairway +1, sand −1), dashed rings are putts. Slopes carry the ball
-  after it lands, mulligans re-roll the die, spotting Bigfoot earns a
-  free one, and a scorecard tracks the round. Works great on phones —
-  the roll controls stay pinned to the bottom of the screen. Add
+  after it lands, mulligans re-roll the die, spotting the course's
+  hidden wonder earns a free one, and a scorecard tracks the round.
+  Works great on phones — the roll controls stay pinned to the bottom
+  of the screen. Add
   `&play=1` to a shared course URL to send someone straight into a
   round: [play Deep Forest now](https://cagedchimp.github.io/Pocket-Golf-Printable/?seed=demo-course&theme=forest&holes=18&play=1).
 - **🖨 Print** — print with margins set to *none* and background
@@ -76,8 +83,10 @@ line of play.
 
 You may always putt (move 1) instead of your roll. 6 mulligans
 (re-rolls) per course — tick them off on the title page. Rumor has it
-Bigfoot hides on one hole in about a third of courses; spotting him
-earns a free mulligan.
+a *wonder* hides on one hole in about a third of courses — usually
+Bigfoot's footprints or a garden gnome, but sometimes an old castle, a
+UFO, or (only on lakeside courses, and rarely even there) the kraken
+lurking in a pond. Spot it and tap it for a free mulligan.
 
 ## Guaranteed playable
 

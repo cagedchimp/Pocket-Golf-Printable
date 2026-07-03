@@ -355,6 +355,8 @@
   <button id="random">🎲 Random seed</button>
   <label for="theme">Style</label>
   <select id="theme"></select>
+  <label for="diff">Difficulty</label>
+  <select id="diff"></select>
   <label for="holes">Holes</label>
   <select id="holes">
     <option value="9">9</option>
@@ -480,19 +482,72 @@ function slopeGlyph(x, y, dir) {
     '<polyline points="' + h1x + ',' + h1y + ' ' + tipX + ',' + tipY + ' ' + h2x + ',' + h2y + '"/></g>';
 }
 
-function bigfootGlyph(x, y) {
-  var X = cx(x), Y = cy(y);
-  var g = '<g fill="#6d736f">';
-  // two tiny footprints, slightly offset
-  [[-3.5, 2, -18], [3.5, -3, -12]].forEach(function (f) {
-    var fx = X + f[0], fy = Y + f[1];
-    g += '<g transform="translate(' + fx + ' ' + fy + ') rotate(' + f[2] + ')">' +
-      '<ellipse cx="0" cy="1.4" rx="2.5" ry="3.6"/>' +
-      '<circle cx="-1.5" cy="-3.4" r="0.85"/><circle cx="-0.3" cy="-4" r="0.85"/>' +
-      '<circle cx="1" cy="-3.7" r="0.85"/><circle cx="2" cy="-2.9" r="0.8"/></g>';
-  });
-  return g + '</g>';
-}
+// Wonder glyphs — small, quiet marks meant to be hunted, not noticed.
+// All keyed by the wonder keys in golf.js.
+var WONDER_GLYPHS = {
+  bigfoot: function (x, y) {
+    var X = cx(x), Y = cy(y);
+    var g = '<g fill="#6d736f">';
+    // two tiny footprints, slightly offset
+    [[-3.5, 2, -18], [3.5, -3, -12]].forEach(function (f) {
+      var fx = X + f[0], fy = Y + f[1];
+      g += '<g transform="translate(' + fx + ' ' + fy + ') rotate(' + f[2] + ')">' +
+        '<ellipse cx="0" cy="1.4" rx="2.5" ry="3.6"/>' +
+        '<circle cx="-1.5" cy="-3.4" r="0.85"/><circle cx="-0.3" cy="-4" r="0.85"/>' +
+        '<circle cx="1" cy="-3.7" r="0.85"/><circle cx="2" cy="-2.9" r="0.8"/></g>';
+    });
+    return g + '</g>';
+  },
+  gnome: function (x, y) {
+    var X = cx(x), Y = cy(y);
+    // pointy hat, round face, little body
+    return '<g fill="#6d736f">' +
+      '<path d="M' + X + ' ' + (Y - 6.2) +
+        'L' + (X + 2.7) + ' ' + (Y - 0.8) +
+        'L' + (X - 2.7) + ' ' + (Y - 0.8) + 'Z"/>' +
+      '<circle cx="' + X + '" cy="' + (Y + 0.9) + '" r="1.7"/>' +
+      '<path d="M' + (X - 2.4) + ' ' + (Y + 6) +
+        'a2.4 3.2 0 0 1 4.8 0Z"/></g>';
+  },
+  castle: function (x, y) {
+    var X = cx(x), Y = cy(y);
+    function tower(tx) {
+      return '<path d="M' + (tx - 1.6) + ' ' + (Y + 5) +
+        'V' + (Y - 4) + 'h1v1.4h1.2v-1.4h1' +
+        'V' + (Y + 5) + 'Z"/>';
+    }
+    // two crenellated towers and a wall with a gate arch
+    return '<g fill="#6d736f">' + tower(X - 4.4) + tower(X + 4.4) +
+      '<path d="M' + (X - 2.8) + ' ' + (Y + 5) + 'V' + (Y - 0.5) +
+        'H' + (X + 2.8) + 'V' + (Y + 5) +
+        'H' + (X + 1.4) + 'V' + (Y + 2.4) +
+        'a1.4 1.7 0 0 0 -2.8 0V' + (Y + 5) + 'Z"/></g>';
+  },
+  ufo: function (x, y) {
+    var X = cx(x), Y = cy(y);
+    // saucer, dome, and a dotted beam
+    return '<g fill="#6d736f">' +
+      '<ellipse cx="' + X + '" cy="' + (Y - 1) + '" rx="5" ry="1.8"/>' +
+      '<path d="M' + (X - 2.3) + ' ' + (Y - 2.2) +
+        'a2.3 2.3 0 0 1 4.6 0Z"/>' +
+      '<circle cx="' + (X - 1.6) + '" cy="' + (Y + 2.2) + '" r="0.75"/>' +
+      '<circle cx="' + X + '" cy="' + (Y + 3.6) + '" r="0.75"/>' +
+      '<circle cx="' + (X + 1.6) + '" cy="' + (Y + 2.2) + '" r="0.75"/></g>';
+  },
+  kraken: function (x, y) {
+    var X = cx(x), Y = cy(y);
+    // pale tentacles breaking the water, eyes on the head
+    return '<g stroke="#e9ece9" fill="none" stroke-width="1.7" stroke-linecap="round">' +
+      '<path d="M' + (X - 4.6) + ' ' + (Y + 4) +
+        'Q' + (X - 6.4) + ' ' + Y + ' ' + (X - 4.4) + ' ' + (Y - 2.6) + '"/>' +
+      '<path d="M' + (X + 4.6) + ' ' + (Y + 4) +
+        'Q' + (X + 6.4) + ' ' + Y + ' ' + (X + 4.4) + ' ' + (Y - 2.6) + '"/></g>' +
+      '<path fill="#e9ece9" d="M' + (X - 2.8) + ' ' + (Y + 2.2) +
+        'a2.8 3 0 0 1 5.6 0Z"/>' +
+      '<circle cx="' + (X - 1.1) + '" cy="' + (Y + 0.9) + '" r="0.7" fill="#3f4442"/>' +
+      '<circle cx="' + (X + 1.1) + '" cy="' + (Y + 0.9) + '" r="0.7" fill="#3f4442"/>';
+  }
+};
 
 // The cup: a ring at the cell with a flagstick rising from it.
 function flagGlyph(x, y) {
@@ -532,7 +587,7 @@ function renderHoleSVG(hole) {
   }
   s += '<g fill="#a9aeac">' + gray + '</g><g fill="#ffffff">' + white + '</g>';
 
-  // trees, slopes, bigfoot
+  // trees, slopes, and any hidden wonder
   for (y = 0; y < hole.h; y++) {
     for (x = 0; x < hole.w; x++) {
       var k = y * hole.w + x;
@@ -540,7 +595,7 @@ function renderHoleSVG(hole) {
       else if (hole.slope[k] >= 0) s += slopeGlyph(x, y, hole.slope[k]);
     }
   }
-  if (hole.bigfoot) s += bigfootGlyph(hole.bigfoot.x, hole.bigfoot.y);
+  if (hole.wonder) s += WONDER_GLYPHS[hole.wonder.key](hole.wonder.x, hole.wonder.y);
 
   // tee (solid) and cup (flagstick)
   s += '<circle cx="' + cx(hole.tee.x) + '" cy="' + cy(hole.tee.y) + '" r="' + (U * 0.30) + '" fill="#3f4442"/>';
@@ -582,11 +637,15 @@ function legendIcon(kind) {
   return s + '</svg>';
 }
 
+function starString(rating) {
+  return '★★★'.slice(0, rating) + '☆☆☆'.slice(0, 3 - rating);
+}
+
 function titleCard(course) {
   var div = document.createElement('div');
   div.className = 'quarter title-card';
   var pips = '';
-  for (var i = 0; i < 6; i++) pips += '<div class="pip"></div>';
+  for (var i = 0; i < course.mulligans; i++) pips += '<div class="pip"></div>';
   var legend =
     '<div class="item">' + legendIcon('tee') + 'Tee — start here</div>' +
     '<div class="item">' + legendIcon('cup') + 'Hole — get in!</div>' +
@@ -603,6 +662,8 @@ function titleCard(course) {
       '<h2>' + course.name + '</h2>' +
       '<div class="sub">' + course.holes.length + ' holes &middot; Par ' + course.par +
         ' &middot; ' + course.themeLabel + '</div>' +
+      '<div class="sub" style="margin-top:2px">' + starString(course.rating) + ' ' +
+        course.difficultyLabel + '</div>' +
       '<div class="seed">seed: ' + course.seed + '</div>' +
     '</div>' +
     '<div>' +
@@ -685,11 +746,12 @@ function terrainNote(t) {
 function startPlay() {
   var seed = el('seed').value.trim() || 'pocket-golf';
   play = {
-    course: G.generateCourse(seed, parseInt(el('holes').value, 10), el('theme').value),
-    hi: 0, scores: [], mulligans: 6, bigfootFound: false,
+    course: G.generateCourse(seed, parseInt(el('holes').value, 10), el('theme').value, el('diff').value),
+    hi: 0, scores: [], wonderFound: null,
     ball: null, strokes: 0, roll: null, rollSwing: 0, moves: null,
     segments: [], over: false
   };
+  play.mulligans = play.course.mulligans;
   document.body.classList.add('playing');
   el('play-toggle').textContent = '✕ Exit play';
   el('p-course').textContent = play.course.name;
@@ -736,9 +798,18 @@ function renderBoard() {
   redrawOverlay();
 }
 
+// What spotting each wonder says, and how the share text brags about it.
+var WONDER_TEXT = {
+  bigfoot: { found: 'You spotted Bigfoot!', brag: 'I even spotted Bigfoot 🦶' },
+  gnome:   { found: 'You found the garden gnome!', brag: 'I even found the garden gnome 🍄' },
+  castle:  { found: 'You discovered the old castle!', brag: 'I even found the old castle 🏰' },
+  ufo:     { found: 'A UFO hovers overhead!', brag: 'I even saw a UFO 🛸' },
+  kraken:  { found: 'The kraken surfaces!', brag: 'I even saw the kraken 🐙' }
+};
+
 // Map a tap/click on the board to a legal move (with a little
 // finger-slop tolerance when the nearest target is unambiguous),
-// or to Bigfoot's footprints for the free mulligan.
+// or to the hole's hidden wonder for the free mulligan.
 function boardTap(evt) {
   if (!play) return;
   var pt = play.svg.createSVGPoint();
@@ -764,10 +835,10 @@ function boardTap(evt) {
   }
 
   var hole = curHole();
-  if (hole.bigfoot && !play.bigfootFound && distTo(hole.bigfoot.x, hole.bigfoot.y) <= 0.8) {
-    play.bigfootFound = true;
+  if (hole.wonder && !play.wonderFound && distTo(hole.wonder.x, hole.wonder.y) <= 0.8) {
+    play.wonderFound = hole.wonder.key;
     play.mulligans++;
-    setMsg('<b>You spotted Bigfoot!</b> Free mulligan earned.');
+    setMsg('<b>' + WONDER_TEXT[hole.wonder.key].found + '</b> Free mulligan earned.');
     updateHUD();
   }
 }
@@ -894,6 +965,7 @@ function shareLink() {
   var params = new URLSearchParams();
   params.set('seed', play.course.seed);
   params.set('theme', play.course.theme);
+  params.set('diff', play.course.difficulty);
   params.set('holes', String(play.course.holes.length));
   params.set('play', '1');
   return location.origin + location.pathname + '?' + params.toString();
@@ -902,7 +974,10 @@ function shareLink() {
 function shareRound() {
   var r = roundResult();
   var text = 'I shot ' + r.total + ' (' + r.vs + ') on ' + play.course.name +
-    ' — Pocket Golf, seed "' + play.course.seed + '". Think you can beat it?';
+    ' (' + starString(play.course.rating) + ' ' + play.course.difficultyLabel + ')' +
+    ' — Pocket Golf, seed "' + play.course.seed + '".' +
+    (play.wonderFound ? ' ' + WONDER_TEXT[play.wonderFound].brag + '.' : '') +
+    ' Think you can beat it?';
   var url = shareLink();
   var btn = el('p-share');
   function flash(label) {
@@ -1018,6 +1093,7 @@ function syncURL() {
   var params = new URLSearchParams();
   params.set('seed', document.getElementById('seed').value.trim() || 'pocket-golf');
   params.set('theme', document.getElementById('theme').value);
+  params.set('diff', document.getElementById('diff').value);
   params.set('holes', document.getElementById('holes').value);
   if (play) params.set('play', '1');
   history.replaceState(null, '', '?' + params.toString());
@@ -1027,7 +1103,7 @@ function rebuild() {
   var seed = document.getElementById('seed').value.trim() || 'pocket-golf';
   var numHoles = parseInt(document.getElementById('holes').value, 10);
   var theme = document.getElementById('theme').value;
-  var course = G.generateCourse(seed, numHoles, theme);
+  var course = G.generateCourse(seed, numHoles, theme, document.getElementById('diff').value);
   syncURL();
 
   var quarters = [titleCard(course)];
@@ -1056,7 +1132,8 @@ function randomSeed() {
          Math.random().toString(36).slice(2, 7);
 }
 
-// Populate the theme selector from the generator's theme registry.
+// Populate the theme and difficulty selectors from the generator's
+// registries.
 (function () {
   var sel = document.getElementById('theme');
   Object.keys(G.THEMES).forEach(function (key) {
@@ -1065,6 +1142,14 @@ function randomSeed() {
     opt.textContent = G.THEMES[key].label;
     sel.appendChild(opt);
   });
+  var dsel = document.getElementById('diff');
+  Object.keys(G.DIFFICULTIES).forEach(function (key) {
+    var opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = G.DIFFICULTIES[key].label;
+    dsel.appendChild(opt);
+  });
+  dsel.value = 'standard';
 })();
 
 document.getElementById('random').addEventListener('click', function () {
@@ -1073,6 +1158,7 @@ document.getElementById('random').addEventListener('click', function () {
 });
 document.getElementById('seed').addEventListener('change', rebuild);
 document.getElementById('theme').addEventListener('change', rebuild);
+document.getElementById('diff').addEventListener('change', rebuild);
 document.getElementById('holes').addEventListener('change', rebuild);
 document.getElementById('paper').addEventListener('change', function (e) {
   var a4 = e.target.value === 'a4';
@@ -1087,6 +1173,9 @@ var bootParams = new URLSearchParams(location.search);
 document.getElementById('seed').value = bootParams.get('seed') || randomSeed();
 if (bootParams.get('theme') && G.THEMES[bootParams.get('theme')]) {
   document.getElementById('theme').value = bootParams.get('theme');
+}
+if (bootParams.get('diff') && G.DIFFICULTIES[bootParams.get('diff')]) {
+  document.getElementById('diff').value = bootParams.get('diff');
 }
 if (bootParams.get('holes') === '9') document.getElementById('holes').value = '9';
 rebuild();
