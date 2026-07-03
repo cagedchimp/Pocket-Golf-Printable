@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: pages
@@ -22,9 +24,31 @@ jobs:
           node-version: 22
       - run: node test/generator.test.js
 
+  # Serves the site when the Pages source is "GitHub Actions".
   deploy:
     needs: test
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage static site
+        run: |
+          mkdir -p _site
+          cp index.html golf.js _site/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  # Keeps the gh-pages branch fresh too, in case the Pages source is
+  # ever switched to "Deploy from a branch".
+  publish-branch:
+    needs: test
+    runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: Stage static site
