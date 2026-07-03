@@ -297,6 +297,44 @@
     }
   };
 
+  /* ------------------------------------------------------------------ *
+   * Wonders — rare hidden landmarks. At most one per course; spotting   *
+   * it in play mode earns a free mulligan (like Bigfoot always has).    *
+   * ------------------------------------------------------------------ */
+
+  // weight: relative odds among the wonders eligible for the theme.
+  // themes: null = anywhere; otherwise only these theme keys.
+  // habitat: the terrain the wonder hides on.
+  var WONDERS = {
+    bigfoot: { label: 'Bigfoot', weight: 12, themes: null, habitat: ROUGH },
+    gnome:   { label: 'the garden gnome', weight: 12, themes: null, habitat: ROUGH },
+    castle:  { label: 'the old castle', weight: 5,
+               themes: ['classic', 'forest', 'highlands'], habitat: ROUGH },
+    ufo:     { label: 'a UFO', weight: 3,
+               themes: ['classic', 'dunes', 'highlands'], habitat: ROUGH },
+    kraken:  { label: 'the kraken', weight: 2,
+               themes: ['lakeside'], habitat: WATER }
+  };
+
+  // About 1/3 of courses get a wonder; which one is a weighted pick
+  // among those at home in the theme, so e.g. the kraken only ever
+  // surfaces on lakeside courses — and rarely even there.
+  function rollWonder(rng, themeKey) {
+    if (rng() >= 1 / 3) return null;
+    var keys = Object.keys(WONDERS).filter(function (k) {
+      var w = WONDERS[k].themes;
+      return !w || w.indexOf(themeKey) >= 0;
+    });
+    var total = 0;
+    keys.forEach(function (k) { total += WONDERS[k].weight; });
+    var r = rng() * total;
+    for (var i = 0; i < keys.length; i++) {
+      r -= WONDERS[keys[i]].weight;
+      if (r < 0) return keys[i];
+    }
+    return keys[keys.length - 1];
+  }
+
   function rollN(rng, range, ease) {
     var n = range[0] + ri(rng, range[1] - range[0] + 1);
     return Math.round(n * ease);
@@ -503,7 +541,7 @@
     slope[idx(tee.x, tee.y)] = -1;
     slope[idx(cup.x, cup.y)] = -1;
 
-    return { w: W, h: H, cells: cells, slope: slope, tee: tee, hole: cup, bigfoot: null };
+    return { w: W, h: H, cells: cells, slope: slope, tee: tee, hole: cup, wonder: null };
   }
 
   function generateHole(rng, theme) {
@@ -556,16 +594,23 @@
     var holes = [];
     for (var i = 0; i < numHoles; i++) holes.push(generateHole(rng, theme));
 
-    // In about 1/3 of courses, Bigfoot hides on one hole (free Mulligan!).
-    if (rng() < 1 / 3) {
-      var hb = pick(rng, holes);
-      for (var tries = 0; tries < 100; tries++) {
-        var bx = 1 + ri(rng, W - 2), by = 1 + ri(rng, H - 2);
-        var far = Math.max(Math.abs(bx - hb.tee.x), Math.abs(by - hb.tee.y)) > 3 &&
-                  Math.max(Math.abs(bx - hb.hole.x), Math.abs(by - hb.hole.y)) > 3;
-        if (hb.cells[idx(bx, by)] === ROUGH && hb.slope[idx(bx, by)] < 0 && far) {
-          hb.bigfoot = { x: bx, y: by };
-          break;
+    // Maybe hide a wonder on one hole (free mulligan when spotted).
+    var wonderKey = rollWonder(rng, themeKey);
+    if (wonderKey) {
+      var habitat = WONDERS[wonderKey].habitat;
+      // Only holes that actually have the wonder's habitat qualify
+      // (a kraken needs water to lurk in).
+      var lairs = holes.filter(function (h) { return h.cells.indexOf(habitat) >= 0; });
+      if (lairs.length) {
+        var hb = pick(rng, lairs);
+        for (var tries = 0; tries < 100; tries++) {
+          var bx = 1 + ri(rng, W - 2), by = 1 + ri(rng, H - 2);
+          var far = Math.max(Math.abs(bx - hb.tee.x), Math.abs(by - hb.tee.y)) > 3 &&
+                    Math.max(Math.abs(bx - hb.hole.x), Math.abs(by - hb.hole.y)) > 3;
+          if (hb.cells[idx(bx, by)] === habitat && hb.slope[idx(bx, by)] < 0 && far) {
+            hb.wonder = { key: wonderKey, x: bx, y: by };
+            break;
+          }
         }
       }
     }
@@ -581,6 +626,7 @@
     ROUGH: ROUGH, FAIRWAY: FAIRWAY, SAND: SAND, WATER: WATER, TREE: TREE, GREEN: GREEN,
     DIRS: DIRS,
     THEMES: THEMES,
+    WONDERS: WONDERS,
     generateCourse: generateCourse,
     generateHole: generateHole,
     solve: solve,

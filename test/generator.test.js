@@ -15,10 +15,36 @@ function assert(cond, msg) {
 const SEEDS = 60;
 const t0 = Date.now();
 const bestCounts = {};
+const wonderCounts = {};
 
+// A hole's wonder must be a known kind allowed on this theme, sit on
+// its habitat terrain, and keep clear of the tee and cup.
+function checkWonder(course, label) {
+  let found = 0;
+  course.holes.forEach((h, i) => {
+    if (!h.wonder) return;
+    found++;
+    const spec = golf.WONDERS[h.wonder.key];
+    assert(!!spec, `${label} hole ${i + 1}: unknown wonder "${h.wonder.key}"`);
+    if (!spec) return;
+    assert(!spec.themes || spec.themes.includes(course.theme),
+      `${label} hole ${i + 1}: ${h.wonder.key} not allowed on theme ${course.theme}`);
+    assert(h.cells[h.wonder.y * h.w + h.wonder.x] === spec.habitat,
+      `${label} hole ${i + 1}: ${h.wonder.key} off its habitat`);
+    const clear = p => Math.max(Math.abs(h.wonder.x - p.x), Math.abs(h.wonder.y - p.y)) > 3;
+    assert(clear(h.tee) && clear(h.hole),
+      `${label} hole ${i + 1}: wonder too close to tee or cup`);
+    wonderCounts[h.wonder.key] = (wonderCounts[h.wonder.key] || 0) + 1;
+  });
+  assert(found <= 1, `${label}: more than one wonder on the course`);
+  return found;
+}
+
+let wonderCourses = 0;
 for (let s = 0; s < SEEDS; s++) {
   const course = golf.generateCourse('test-seed-' + s, 18);
   assert(course.holes.length === 18, `seed ${s}: expected 18 holes`);
+  wonderCourses += checkWonder(course, `seed ${s}`);
   course.holes.forEach((h, i) => {
     const best = golf.solve(h);
     assert(best !== null, `seed ${s} hole ${i + 1}: unsolvable`);
@@ -53,6 +79,20 @@ function countSlopes(course) {
   course.holes.forEach(h => h.slope.forEach(s => { if (s >= 0) n++; }));
   return n / course.holes.length;
 }
+
+// Wonders appear on roughly 1/3 of courses (60 draws: expect ~20).
+assert(wonderCourses >= 10 && wonderCourses <= 30,
+  `wonder rate off: ${wonderCourses}/60 courses`);
+
+// Sweep the wonder-restricted themes so the rarer kinds (kraken, UFO,
+// castle) each turn up somewhere and get their placement checked.
+for (const themeKey of ['lakeside', 'dunes', 'highlands']) {
+  for (let s = 0; s < 40; s++) {
+    checkWonder(golf.generateCourse('wonder-' + s, 9, themeKey), `wonder-${s} ${themeKey}`);
+  }
+}
+assert(Object.keys(wonderCounts).length >= 3,
+  `expected several wonder kinds across the sweep, saw: ${JSON.stringify(wonderCounts)}`);
 
 const themed = {};
 for (const key of Object.keys(golf.THEMES)) {
@@ -149,6 +189,7 @@ assert(JSON.stringify(a) !== JSON.stringify(c), 'different seeds should differ')
 const dt = Date.now() - t0;
 console.log(`Generated ${SEEDS} courses (${SEEDS * 18} holes) in ${dt}ms`);
 console.log('Optimal-stroke distribution:', bestCounts);
+console.log('Wonders seen:', wonderCounts);
 
 if (failures) {
   console.error(failures + ' failure(s)');

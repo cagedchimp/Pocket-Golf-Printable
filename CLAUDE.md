@@ -52,8 +52,10 @@ Straight-line moves in 8 directions, distance = d6 roll. Fairway +1 and
 may fly over trees; sand −1; rough/green exact; water and trees can be
 flown over but never landed on; slope arrows carry the ball after
 landing; a putt (1 space, or 1–2 on the green) is always allowed instead
-of the roll. Par 6 every hole; 6 mulligans per course; Bigfoot grants a
-free mulligan.
+of the roll. Par 6 every hole; 6 mulligans per course. About 1/3 of
+courses hide a **wonder** on one hole (Bigfoot, gnome, castle, UFO,
+kraken — the `WONDERS` registry in golf.js; some are theme-restricted
+and rarer than others); tapping it in play mode earns a free mulligan.
 
 ## Deploy
 
