@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pocket Golf Printable</title>
+<style>
+  :root {
+    --ink: #3f4442;
+    --dot: #a9aeac;
+    --fairway: #e4e7e5;
+    --water: #79837d;
+    --sand-line: #b7bcba;
+    --paper: #ffffff;
+    --cut: #c2c6c4;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: #d7dad8;
+    font-family: "Avenir Next", "Century Gothic", Futura, "Trebuchet MS", -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink);
+  }
+
+  /* ------------------------------ controls ------------------------- */
+  .controls {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    padding: 12px 18px;
+    background: var(--ink);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  }
+  .controls h1 {
+    font-size: 16px;
+    margin: 0 14px 0 0;
+    font-weight: 700;
+    letter-spacing: .04em;
+  }
+  .controls label { font-size: 12px; opacity: .85; margin-left: 6px; }
+  .controls input, .controls select {
+    font: inherit;
+    font-size: 13px;
+    padding: 5px 8px;
+    border: none;
+    border-radius: 6px;
+  }
+  .controls input#seed { width: 150px; }
+  .controls button {
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background: #fff;
+    color: var(--ink);
+  }
+  .controls button.primary { background: #9fd6a8; }
+  .controls .spacer { flex: 1; }
+
+  /* ------------------------------ sheets --------------------------- */
+  #sheets { padding: 24px 0 60px; }
+
+  .sheet {
+    position: relative;
+    width: 8.5in;
+    height: 11in;
+    margin: 0 auto 24px;
+    background: var(--paper);
+    box-shadow: 0 3px 14px rgba(0,0,0,.22);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+  body.a4 .sheet { width: 210mm; height: 297mm; }
+
+  /* dashed cut guides through the middle of the sheet */
+  .sheet::before, .sheet::after {
+    content: "";
+    position: absolute;
+    z-index: 1;
+    pointer-events: none;
+  }
+  .sheet::before {
+    left: 50%; top: 0; bottom: 0;
+    border-left: 1px dashed var(--cut);
+  }
+  .sheet::after {
+    top: 50%; left: 0; right: 0;
+    border-top: 1px dashed var(--cut);
+  }
+
+  .quarter {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 0.28in 0.30in 0.24in;
+  }
+
+  /* ------------------------------ hole card ------------------------ */
+  .hole-card svg { flex: 1; width: 100%; height: 0; min-height: 0; }
+
+  .hole-footer {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 2px 0;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .02em;
+  }
+  .hole-footer .blank {
+    display: inline-block;
+    width: 34px;
+    border-bottom: 1.5px solid var(--ink);
+    height: 1em;
+    vertical-align: baseline;
+  }
+  .hole-footer .blank.wide { width: 44px; }
+
+  /* ------------------------------ title card ----------------------- */
+  .title-card { justify-content: space-between; text-align: center; }
+  .title-card .flag { font-size: 34px; margin-top: .35in; }
+  .title-card h2 {
+    font-size: 24px;
+    line-height: 1.15;
+    margin: 8px 0 4px;
+    letter-spacing: .02em;
+  }
+  .title-card .sub { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; opacity: .75; }
+  .title-card .seed { font-size: 10px; opacity: .55; margin-top: 4px; }
+
+  .mulligans { margin: 14px 0 4px; }
+  .mulligans .label { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; opacity: .75; margin-bottom: 6px; }
+  .mulligans .pips { display: flex; justify-content: center; gap: 9px; }
+  .mulligans .pip {
+    width: 17px; height: 17px;
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+  }
+
+  .legend {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px 14px;
+    text-align: left;
+    font-size: 10.5px;
+    margin: 10px auto 0;
+    max-width: 3.5in;
+  }
+  .legend .item { display: flex; align-items: center; gap: 7px; }
+  .legend svg { flex: none; }
+  .title-card .credit { font-size: 9px; opacity: .5; margin-top: 10px; }
+
+  /* ------------------------------ scorecard ------------------------ */
+  .score-card h3 {
+    text-align: center;
+    font-size: 16px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    margin: 4px 0 2px;
+  }
+  .score-card .course-name { text-align: center; font-size: 11px; opacity: .7; margin-bottom: 10px; }
+  .score-tables { display: flex; gap: 12px; flex: 1; }
+  .score-tables table {
+    flex: 1;
+    border-collapse: collapse;
+    font-size: 11px;
+    height: min-content;
+  }
+  .score-tables th, .score-tables td {
+    border: 1px solid var(--ink);
+    padding: 3px 6px;
+    text-align: center;
+  }
+  .score-tables th { background: var(--fairway); letter-spacing: .06em; }
+  .score-tables td.stroke-cell { min-width: 40px; }
+  .score-tables tr.sum td { font-weight: 700; background: var(--fairway); }
+  .score-card .players {
+    margin-top: 10px;
+    font-size: 11px;
+    display: grid;
+    gap: 8px;
+  }
+  .score-card .players .line { border-bottom: 1.2px solid var(--ink); padding-top: 12px; }
+
+  /* ------------------------------ print ---------------------------- */
+  @media print {
+    body { background: #fff; }
+    .controls { display: none; }
+    #sheets { padding: 0; }
+    .sheet {
+      margin: 0;
+      box-shadow: none;
+      break-after: page;
+    }
+    .sheet:last-child { break-after: auto; }
+  }
+</style>
+<style id="page-size">@page { size: letter; margin: 0; }</style>
+</head>
+<body>
+
+<div class="controls">
+  <h1>⛳ POCKET GOLF</h1>
+  <label for="seed">Seed</label>
+  <input id="seed" type="text" spellcheck="false">
+  <button id="random">🎲 New course</button>
+  <label for="holes">Holes</label>
+  <select id="holes">
+    <option value="9">9</option>
+    <option value="18" selected>18</option>
+  </select>
+  <label for="paper">Paper</label>
+  <select id="paper">
+    <option value="letter" selected>Letter</option>
+    <option value="a4">A4</option>
+  </select>
+  <span class="spacer"></span>
+  <button id="print" class="primary">🖨 Print</button>
+</div>
+
+<div id="sheets"></div>
+
+<script src="golf.js"></script>
+<script>
+'use strict';
+
+/* ==================================================================== *
+ *  SVG rendering                                                       *
+ * ==================================================================== */
+
+var G = window.PaperGolf;
+var U = 20;      // grid unit in SVG user units
+var PAD = 12;    // margin around the dot grid
+
+function svgOpen(w, h, extra) {
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '"' + (extra || '') + '>';
+}
+
+var SAND_PATTERN =
+  '<defs><pattern id="sandp" width="7" height="7" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">' +
+  '<rect width="7" height="7" fill="#ffffff"/>' +
+  '<line x1="0" y1="0" x2="0" y2="7" stroke="#b7bcba" stroke-width="2.4"/>' +
+  '</pattern></defs>';
+
+// Center of grid cell (x, y) in SVG coordinates.
+function cx(x) { return PAD + (x + 0.5) * U; }
+function cy(y) { return PAD + (y + 0.5) * U; }
+
+// One terrain cell as a path with corners rounded only where the
+// blob edge is exposed — adjacent same-type cells merge seamlessly.
+function cellPath(hole, x, y, type) {
+  function same(nx, ny) {
+    return nx >= 0 && nx < hole.w && ny >= 0 && ny < hole.h &&
+           hole.cells[ny * hole.w + nx] === type;
+  }
+  var L = same(x - 1, y), R = same(x + 1, y), Uu = same(x, y - 1), D = same(x, y + 1);
+  var x0 = PAD + x * U, y0 = PAD + y * U, x1 = x0 + U, y1 = y0 + U;
+  var r = 6;
+  var tl = (!L && !Uu) ? r : 0, tr = (!R && !Uu) ? r : 0;
+  var br = (!R && !D) ? r : 0, bl = (!L && !D) ? r : 0;
+  return 'M' + (x0 + tl) + ' ' + y0 +
+    'H' + (x1 - tr) + (tr ? 'a' + tr + ' ' + tr + ' 0 0 1 ' + tr + ' ' + tr : '') +
+    'V' + (y1 - br) + (br ? 'a' + br + ' ' + br + ' 0 0 1 -' + br + ' ' + br : '') +
+    'H' + (x0 + bl) + (bl ? 'a' + bl + ' ' + bl + ' 0 0 1 -' + bl + ' -' + bl : '') +
+    'V' + (y0 + tl) + (tl ? 'a' + tl + ' ' + tl + ' 0 0 1 ' + tl + ' -' + tl : '') + 'Z';
+}
+
+function terrainLayer(hole, type, fill) {
+  var d = '';
+  for (var y = 0; y < hole.h; y++) {
+    for (var x = 0; x < hole.w; x++) {
+      if (hole.cells[y * hole.w + x] === type) d += cellPath(hole, x, y, type);
+    }
+  }
+  return d ? '<path d="' + d + '" fill="' + fill + '"/>' : '';
+}
+
+function treeGlyph(x, y) {
+  var X = cx(x), Y = cy(y), s = U * 0.42;
+  return '<path fill="#4a4f4d" d="' +
+    'M' + X + ' ' + (Y - s) +
+    'L' + (X + s * 0.85) + ' ' + (Y + s * 0.55) +
+    'L' + (X - s * 0.85) + ' ' + (Y + s * 0.55) + 'Z"/>' +
+    '<rect x="' + (X - 1.6) + '" y="' + (Y + s * 0.55) + '" width="3.2" height="' + (s * 0.45) + '" fill="#4a4f4d"/>';
+}
+
+function slopeGlyph(x, y, dir) {
+  var X = cx(x), Y = cy(y), s = U * 0.30;
+  var d = G.DIRS[dir];
+  var tipX = X + d[0] * s, tipY = Y + d[1] * s;
+  var tailX = X - d[0] * s, tailY = Y - d[1] * s;
+  // arrowhead wings perpendicular to direction
+  var px = -d[1], py = d[0];
+  var w = s * 0.55, back = s * 0.35;
+  var h1x = tipX - d[0] * back + px * w, h1y = tipY - d[1] * back + py * w;
+  var h2x = tipX - d[0] * back - px * w, h2y = tipY - d[1] * back - py * w;
+  return '<g stroke="#8d938f" stroke-width="2.4" stroke-linecap="round" fill="none">' +
+    '<line x1="' + tailX + '" y1="' + tailY + '" x2="' + tipX + '" y2="' + tipY + '"/>' +
+    '<polyline points="' + h1x + ',' + h1y + ' ' + tipX + ',' + tipY + ' ' + h2x + ',' + h2y + '"/></g>';
+}
+
+function bigfootGlyph(x, y) {
+  var X = cx(x), Y = cy(y);
+  var g = '<g fill="#6d736f">';
+  // two tiny footprints, slightly offset
+  [[-3.5, 2, -18], [3.5, -3, -12]].forEach(function (f) {
+    var fx = X + f[0], fy = Y + f[1];
+    g += '<g transform="translate(' + fx + ' ' + fy + ') rotate(' + f[2] + ')">' +
+      '<ellipse cx="0" cy="1.4" rx="2.5" ry="3.6"/>' +
+      '<circle cx="-1.5" cy="-3.4" r="0.85"/><circle cx="-0.3" cy="-4" r="0.85"/>' +
+      '<circle cx="1" cy="-3.7" r="0.85"/><circle cx="2" cy="-2.9" r="0.8"/></g>';
+  });
+  return g + '</g>';
+}
+
+function renderHoleSVG(hole) {
+  var wpx = hole.w * U + PAD * 2;
+  var hpx = hole.h * U + PAD * 2;
+  var s = svgOpen(wpx, hpx, ' preserveAspectRatio="xMidYMid meet"');
+  s += SAND_PATTERN;
+
+  // terrain blobs (fairway under everything, then sand, then water)
+  s += terrainLayer(hole, G.FAIRWAY, 'var(--fairway, #e4e7e5)');
+  s += terrainLayer(hole, G.SAND, 'url(#sandp)');
+  s += terrainLayer(hole, G.WATER, '#79837d');
+
+  // dot grid — white dots on water, none under trees, gray elsewhere
+  var gray = '', white = '';
+  for (var y = 0; y < hole.h; y++) {
+    for (var x = 0; x < hole.w; x++) {
+      var t = hole.cells[y * hole.w + x];
+      if (t === G.TREE) continue;
+      if (hole.slope[y * hole.w + x] >= 0) continue;
+      var dot = '<circle cx="' + cx(x) + '" cy="' + cy(y) + '" r="1.7"/>';
+      if (t === G.WATER) white += dot; else gray += dot;
+    }
+  }
+  s += '<g fill="#a9aeac">' + gray + '</g><g fill="#ffffff">' + white + '</g>';
+
+  // trees, slopes, bigfoot
+  for (y = 0; y < hole.h; y++) {
+    for (x = 0; x < hole.w; x++) {
+      var k = y * hole.w + x;
+      if (hole.cells[k] === G.TREE) s += treeGlyph(x, y);
+      else if (hole.slope[k] >= 0) s += slopeGlyph(x, y, hole.slope[k]);
+    }
+  }
+  if (hole.bigfoot) s += bigfootGlyph(hole.bigfoot.x, hole.bigfoot.y);
+
+  // tee (solid) and cup (ring)
+  s += '<circle cx="' + cx(hole.tee.x) + '" cy="' + cy(hole.tee.y) + '" r="' + (U * 0.30) + '" fill="#3f4442"/>';
+  s += '<circle cx="' + cx(hole.hole.x) + '" cy="' + cy(hole.hole.y) + '" r="' + (U * 0.27) +
+       '" fill="#ffffff" stroke="#3f4442" stroke-width="3.4"/>';
+
+  return s + '</svg>';
+}
+
+/* ==================================================================== *
+ *  Quarter-page cards                                                  *
+ * ==================================================================== */
+
+function holeCard(hole, num) {
+  var div = document.createElement('div');
+  div.className = 'quarter hole-card';
+  div.innerHTML =
+    renderHoleSVG(hole) +
+    '<div class="hole-footer">' +
+    '<span>Hole ' + num + '</span>' +
+    '<span>Strokes: <span class="blank"></span>&thinsp;/ 6</span>' +
+    '<span>Total: <span class="blank wide"></span></span>' +
+    '</div>';
+  return div;
+}
+
+function legendIcon(kind) {
+  var s = svgOpen(22, 22, ' width="20" height="20"');
+  switch (kind) {
+    case 'fairway': s += SAND_PATTERN + '<rect x="2" y="2" width="18" height="18" rx="5" fill="#e4e7e5"/><circle cx="11" cy="11" r="1.6" fill="#a9aeac"/>'; break;
+    case 'rough':   s += '<circle cx="6" cy="6" r="1.6" fill="#a9aeac"/><circle cx="16" cy="6" r="1.6" fill="#a9aeac"/><circle cx="6" cy="16" r="1.6" fill="#a9aeac"/><circle cx="16" cy="16" r="1.6" fill="#a9aeac"/>'; break;
+    case 'sand':    s += SAND_PATTERN + '<rect x="2" y="2" width="18" height="18" rx="5" fill="url(#sandp)" stroke="#c9cdcb"/>'; break;
+    case 'water':   s += '<rect x="2" y="2" width="18" height="18" rx="5" fill="#79837d"/><circle cx="11" cy="11" r="1.6" fill="#fff"/>'; break;
+    case 'tree':    s += '<path fill="#4a4f4d" d="M11 3 L18 15 L4 15 Z"/><rect x="10" y="15" width="2.4" height="4" fill="#4a4f4d"/>'; break;
+    case 'slope':   s += '<g stroke="#8d938f" stroke-width="2.2" stroke-linecap="round" fill="none"><line x1="5" y1="11" x2="17" y2="11"/><polyline points="13,6.5 17,11 13,15.5"/></g>'; break;
+    case 'tee':     s += '<circle cx="11" cy="11" r="5.5" fill="#3f4442"/>'; break;
+    case 'cup':     s += '<circle cx="11" cy="11" r="5" fill="#fff" stroke="#3f4442" stroke-width="3"/>'; break;
+  }
+  return s + '</svg>';
+}
+
+function titleCard(course) {
+  var div = document.createElement('div');
+  div.className = 'quarter title-card';
+  var pips = '';
+  for (var i = 0; i < 6; i++) pips += '<div class="pip"></div>';
+  var legend =
+    '<div class="item">' + legendIcon('tee') + 'Tee — start here</div>' +
+    '<div class="item">' + legendIcon('cup') + 'Hole — get in!</div>' +
+    '<div class="item">' + legendIcon('fairway') + 'Fairway (+1 roll)</div>' +
+    '<div class="item">' + legendIcon('rough') + 'Rough (exact roll)</div>' +
+    '<div class="item">' + legendIcon('sand') + 'Sand (−1 roll)</div>' +
+    '<div class="item">' + legendIcon('water') + 'Water (never land)</div>' +
+    '<div class="item">' + legendIcon('tree') + 'Trees (block hits)</div>' +
+    '<div class="item">' + legendIcon('slope') + 'Slope (ball rolls)</div>';
+  div.innerHTML =
+    '<div>' +
+      '<div class="flag">⛳</div>' +
+      '<h2>' + course.name + '</h2>' +
+      '<div class="sub">' + course.holes.length + ' holes &middot; Par ' + course.par + '</div>' +
+      '<div class="seed">seed: ' + course.seed + '</div>' +
+    '</div>' +
+    '<div>' +
+      '<div class="mulligans"><div class="label">Mulligans</div><div class="pips">' + pips + '</div></div>' +
+      '<div class="legend">' + legend + '</div>' +
+    '</div>' +
+    '<div class="credit">Move 1&ndash;6 spaces (d6) in a straight line, 8 directions. Par 6 every hole.<br>' +
+    'Inspired by Paper Apps&trade; GOLF by Tom Brinton.</div>';
+  return div;
+}
+
+function scoreCard(course) {
+  var div = document.createElement('div');
+  div.className = 'quarter score-card';
+  var n = course.holes.length;
+
+  function table(from, to, sumLabel) {
+    var rows = '';
+    for (var i = from; i <= to; i++) {
+      rows += '<tr><td>' + i + '</td><td>6</td><td class="stroke-cell"></td></tr>';
+    }
+    rows += '<tr class="sum"><td>' + sumLabel + '</td><td>' + (to - from + 1) * 6 + '</td><td class="stroke-cell"></td></tr>';
+    return '<table><tr><th>Hole</th><th>Par</th><th>Strokes</th></tr>' + rows + '</table>';
+  }
+
+  var tables = n > 9
+    ? table(1, 9, 'Out') + table(10, n, 'In')
+    : table(1, n, 'Total');
+
+  div.innerHTML =
+    '<h3>Scorecard</h3>' +
+    '<div class="course-name">' + course.name + ' &middot; Par ' + course.par + '</div>' +
+    '<div class="score-tables">' + tables + '</div>' +
+    '<div class="players">' +
+      '<div class="line">Player</div>' +
+      '<div class="line">Date</div>' +
+    '</div>';
+  return div;
+}
+
+/* ==================================================================== *
+ *  Page assembly                                                       *
+ * ==================================================================== */
+
+function rebuild() {
+  var seed = document.getElementById('seed').value.trim() || 'pocket-golf';
+  var numHoles = parseInt(document.getElementById('holes').value, 10);
+  var course = G.generateCourse(seed, numHoles);
+
+  var quarters = [titleCard(course)];
+  course.holes.forEach(function (h, i) { quarters.push(holeCard(h, i + 1)); });
+  quarters.push(scoreCard(course));
+
+  var sheets = document.getElementById('sheets');
+  sheets.innerHTML = '';
+  for (var i = 0; i < quarters.length; i += 4) {
+    var sheet = document.createElement('div');
+    sheet.className = 'sheet';
+    for (var j = i; j < i + 4; j++) {
+      sheet.appendChild(quarters[j] || Object.assign(document.createElement('div'), { className: 'quarter' }));
+    }
+    sheets.appendChild(sheet);
+  }
+}
+
+function randomSeed() {
+  var words = ['birdie', 'bogey', 'eagle', 'albatross', 'divot', 'mulligan',
+    'caddie', 'wedge', 'bunker', 'fescue', 'links', 'dimple', 'fore', 'chip'];
+  return words[Math.floor(Math.random() * words.length)] + '-' +
+         Math.random().toString(36).slice(2, 7);
+}
+
+document.getElementById('random').addEventListener('click', function () {
+  document.getElementById('seed').value = randomSeed();
+  rebuild();
+});
+document.getElementById('seed').addEventListener('change', rebuild);
+document.getElementById('holes').addEventListener('change', rebuild);
+document.getElementById('paper').addEventListener('change', function (e) {
+  var a4 = e.target.value === 'a4';
+  document.body.classList.toggle('a4', a4);
+  document.getElementById('page-size').textContent =
+    '@page { size: ' + (a4 ? 'A4' : 'letter') + '; margin: 0; }';
+});
+document.getElementById('print').addEventListener('click', function () { window.print(); });
+
+document.getElementById('seed').value = randomSeed();
+rebuild();
+</script>
+</body>
+</html>
