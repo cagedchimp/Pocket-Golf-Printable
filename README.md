@@ -51,11 +51,18 @@ directions. Draw the line, mark the ball. Par is 6 on every hole.
 | Terrain | Effect |
 | --- | --- |
 | Fairway (light) | +1 to your roll; you may hit over trees |
+| Green (darker, around the cup) | Plays like rough, but putts may move 1 **or 2** spaces |
 | Rough (dots) | Move exactly your roll |
 | Sand (hatched) | −1 to your roll |
 | Water (dark) | Never land on it; flying over is fine |
 | Trees (pines) | Never land on them; only fly over from the fairway |
 | Slopes (arrows) | Ball rolls 1 more space per arrow after landing |
+
+Holes are laid out like real golf holes: a tee box, a carry over rough,
+a continuous fairway (often with a dogleg and wider landing zones), and
+a green around the cup — guarded by bunkers, tree lines along the
+fairway, copses in dogleg elbows, and the occasional creek crossing the
+line of play.
 
 You may always putt (move 1) instead of your roll. 6 mulligans
 (re-rolls) per course — tick them off on the title page. Rumor has it

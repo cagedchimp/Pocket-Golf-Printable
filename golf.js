@@ -10,6 +10,8 @@
  *  - Moves are straight lines in 8 directions, distance = die roll.
  *  - Fairway: +1 to roll (max move 7), may hit over trees.
  *  - Rough:   move exactly the roll (max 6).
+ *  - Green:   plays like rough for full swings, but putts may move
+ *             1 or 2 spaces (house rule; doesn't change reachability).
  *  - Sand:    -1 to roll (max 5).
  *  - Water:   may fly over, never land on.
  *  - Trees:   never land on; may only fly over when hitting from fairway.
@@ -26,7 +28,7 @@
   var W = 15; // grid columns
   var H = 20; // grid rows
 
-  var ROUGH = 0, FAIRWAY = 1, SAND = 2, WATER = 3, TREE = 4;
+  var ROUGH = 0, FAIRWAY = 1, SAND = 2, WATER = 3, TREE = 4, GREEN = 5;
 
   // 8 move directions; first 4 are orthogonal (also used for slopes)
   var DIRS = [
@@ -131,7 +133,7 @@
   function maxMoveFrom(type) {
     if (type === FAIRWAY) return 7; // roll 6 + 1
     if (type === SAND) return 5;    // roll 6 - 1
-    return 6;                       // rough
+    return 6;                       // rough & green: move exactly the roll
   }
 
   // Ball lands on `x,y`; follow slope arrows until it rests.
@@ -194,45 +196,51 @@
    * ------------------------------------------------------------------ */
 
   // Counts are [min,max] ranges rolled per hole; sizes are blob cell
-  // counts. `slopeChance` is the odds a hole gets slope runs at all.
+  // counts. `creek` is the odds of a water band crossing the fairway,
+  // `slopeChance` the odds a hole gets slope runs at all.
   var THEMES = {
     classic: {
       label: 'Classic',
-      waterN: [1, 2], waterSize: [7, 18],
-      treeN: [2, 4], treeSize: [4, 13],
-      sandN: [0, 2], sandSize: [3, 6],
+      creek: 0.35, creekWide: 0.3,
+      pondN: [0, 1], pondSize: [6, 12],
+      treeN: [2, 4], treeSize: [4, 10],
+      greenSandN: [1, 2], fwSandN: [0, 1], sandSize: [2, 4],
       slopeChance: 0.45, slopeRuns: [1, 1],
       nouns: null
     },
     forest: {
       label: 'Deep Forest',
-      waterN: [0, 1], waterSize: [5, 10],
-      treeN: [4, 7], treeSize: [6, 16],
-      sandN: [0, 1], sandSize: [3, 5],
+      creek: 0.25, creekWide: 0.2,
+      pondN: [0, 1], pondSize: [4, 8],
+      treeN: [5, 8], treeSize: [6, 14],
+      greenSandN: [0, 1], fwSandN: [0, 0], sandSize: [2, 3],
       slopeChance: 0.3, slopeRuns: [1, 1],
       nouns: ['Pines', 'Timber', 'Cedars', 'Redwoods', 'Thicket', 'Grove', 'Woods', 'Hollow']
     },
     lakeside: {
       label: 'Lakeside',
-      waterN: [2, 3], waterSize: [10, 22],
-      treeN: [1, 2], treeSize: [3, 9],
-      sandN: [0, 2], sandSize: [3, 5],
+      creek: 0.75, creekWide: 0.5,
+      pondN: [1, 2], pondSize: [10, 20],
+      treeN: [1, 2], treeSize: [3, 7],
+      greenSandN: [0, 2], fwSandN: [0, 0], sandSize: [2, 4],
       slopeChance: 0.3, slopeRuns: [1, 1],
       nouns: ['Lakes', 'Shores', 'Coves', 'Marsh', 'Waters', 'Inlet', 'Bayou', 'Springs']
     },
     dunes: {
       label: 'Sandy Dunes',
-      waterN: [0, 1], waterSize: [5, 9],
-      treeN: [0, 1], treeSize: [3, 6],
-      sandN: [3, 5], sandSize: [4, 9],
+      creek: 0.1, creekWide: 0.2,
+      pondN: [0, 1], pondSize: [4, 7],
+      treeN: [0, 1], treeSize: [3, 5],
+      greenSandN: [2, 3], fwSandN: [2, 4], sandSize: [3, 6],
       slopeChance: 0.35, slopeRuns: [1, 2],
       nouns: ['Dunes', 'Sands', 'Links', 'Flats', 'Barrens', 'Shells', 'Salt Flats']
     },
     highlands: {
       label: 'Highlands',
-      waterN: [0, 1], waterSize: [6, 12],
-      treeN: [1, 3], treeSize: [4, 10],
-      sandN: [0, 2], sandSize: [3, 6],
+      creek: 0.35, creekWide: 0.2,
+      pondN: [0, 1], pondSize: [5, 10],
+      treeN: [1, 3], treeSize: [3, 8],
+      greenSandN: [1, 2], fwSandN: [0, 1], sandSize: [2, 4],
       slopeChance: 1.0, slopeRuns: [2, 4],
       nouns: ['Highlands', 'Bluffs', 'Ridge', 'Knolls', 'Heights', 'Fells', 'Crags', 'Moors']
     }
@@ -250,6 +258,12 @@
    * Hole generation                                                     *
    * ------------------------------------------------------------------ */
 
+  // Builds a hole with real golf anatomy: a tee box, a rough carry
+  // gap, a continuous fairway ribbon (with doglegs and landing-zone
+  // bulges), a distinct green around the cup, and hazards placed
+  // where a course architect would put them — bunkers guarding the
+  // green, trees lining the fairway and filling dogleg elbows, and
+  // creeks cutting across the line of play.
   function buildHoleAttempt(rng, ease, theme) {
     var cells = new Array(W * H).fill(ROUGH);
     var slope = new Array(W * H).fill(-1);
@@ -257,34 +271,45 @@
     // Tee near one short edge, cup near the other; flip half the time
     // so the course alternates visual direction.
     var flip = rng() < 0.5;
-    var tee = { x: 2 + ri(rng, W - 4), y: 1 + ri(rng, 2) };
+    var tee = { x: 3 + ri(rng, W - 6), y: 1 + ri(rng, 2) };
     var cup = { x: 2 + ri(rng, W - 4), y: H - 2 - ri(rng, 2) };
     if (flip) { var tmp = tee; tee = cup; cup = tmp; }
 
-    // A wandering guide path from tee to cup: 2-3 waypoints with
-    // lateral offsets create doglegs. Its 1-cell corridor is kept
-    // clear of trees and water so the hole stays playable and honest.
+    function nearPt(x, y, p, r) {
+      return Math.max(Math.abs(x - p.x), Math.abs(y - p.y)) <= r;
+    }
+    function paintDisc(px, py, r, type) {
+      for (var ox = -r; ox <= r; ox++) {
+        for (var oy = -r; oy <= r; oy++) {
+          if (inBounds(px + ox, py + oy) && cells[idx(px + ox, py + oy)] === ROUGH) {
+            cells[idx(px + ox, py + oy)] = type;
+          }
+        }
+      }
+    }
+
+    // Centerline from tee to cup with 1-2 dogleg elbows.
     var waypoints = [[tee.x, tee.y]];
-    var nWp = 2 + ri(rng, 2);
+    var nWp = 1 + ri(rng, 2);
     for (var i = 1; i <= nWp; i++) {
       var fy = tee.y + Math.round((cup.y - tee.y) * (i / (nWp + 1)));
-      var fx = Math.max(1, Math.min(W - 2, 1 + ri(rng, W - 2)));
+      var fx = 2 + ri(rng, W - 4);
       waypoints.push([fx, fy]);
     }
     waypoints.push([cup.x, cup.y]);
 
-    var corridor = {};
-    var pathCells = [];
+    var centerline = [];
     for (i = 0; i < waypoints.length - 1; i++) {
       var seg = lineCells(waypoints[i][0], waypoints[i][1], waypoints[i + 1][0], waypoints[i + 1][1]);
-      for (var j = 0; j < seg.length; j++) {
-        pathCells.push(seg[j]);
-        for (var ox = -1; ox <= 1; ox++) {
-          for (var oy = -1; oy <= 1; oy++) {
-            if (inBounds(seg[j][0] + ox, seg[j][1] + oy)) {
-              corridor[idx(seg[j][0] + ox, seg[j][1] + oy)] = true;
-            }
-          }
+      if (i > 0) seg.shift();
+      centerline = centerline.concat(seg);
+    }
+    var corridor = {};
+    for (i = 0; i < centerline.length; i++) {
+      for (var ox = -1; ox <= 1; ox++) {
+        for (var oy = -1; oy <= 1; oy++) {
+          var cxx = centerline[i][0] + ox, cyy = centerline[i][1] + oy;
+          if (inBounds(cxx, cyy)) corridor[idx(cxx, cyy)] = true;
         }
       }
     }
@@ -295,39 +320,111 @@
       return !(x === tee.x && y === tee.y) && !(x === cup.x && y === cup.y);
     }
 
-    // Fairway: pads at the tee and the green, plus patches along the path.
-    growBlob(rng, cells, [tee.x, tee.y], 4 + ri(rng, 4), FAIRWAY, isRough);
-    growBlob(rng, cells, [cup.x, cup.y], 8 + ri(rng, 7), FAIRWAY, isRough);
-    var nFw = 1 + ri(rng, 2);
-    for (i = 0; i < nFw; i++) {
-      var p = pick(rng, pathCells);
-      growBlob(rng, cells, p, 8 + ri(rng, 10), FAIRWAY, isRough);
+    // Fairway ribbon: starts after a short carry gap off the tee and
+    // runs to the green approach. Never scaled by ease — the ribbon
+    // is what makes it read as a golf hole.
+    var L = centerline.length;
+    var startK = Math.min(3 + ri(rng, 2), Math.max(1, L - 6));
+    var endK = Math.max(startK, L - 4);
+    for (var k = startK; k <= endK; k++) {
+      paintDisc(centerline[k][0], centerline[k][1], 1, FAIRWAY);
+    }
+    // Landing-zone bulges widen the ribbon in a spot or two.
+    var nBulge = 1 + ri(rng, 2);
+    for (i = 0; i < nBulge && endK > startK; i++) {
+      k = startK + ri(rng, endK - startK + 1);
+      paintDisc(centerline[k][0], centerline[k][1], 2, FAIRWAY);
+    }
+    // Tee box pad.
+    paintDisc(tee.x, tee.y, 1, FAIRWAY);
+
+    // The green: its own terrain, kept compact around the cup.
+    growBlob(rng, cells, [cup.x, cup.y], 6 + ri(rng, 5), GREEN, function (x, y) {
+      var t = cells[idx(x, y)];
+      return (t === ROUGH || t === FAIRWAY) && nearPt(x, y, cup, 2);
+    });
+
+    // Greenside bunkers, seeded on the green's fringe.
+    var greenAdj = [];
+    for (var yy = 0; yy < H; yy++) {
+      for (var xx = 0; xx < W; xx++) {
+        if (cells[idx(xx, yy)] === GREEN) continue;
+        var t3 = cells[idx(xx, yy)];
+        if (t3 !== ROUGH && t3 !== FAIRWAY) continue;
+        for (var d8 = 0; d8 < 8; d8++) {
+          var ax = xx + DIRS[d8][0], ay = yy + DIRS[d8][1];
+          if (inBounds(ax, ay) && cells[idx(ax, ay)] === GREEN) {
+            greenAdj.push([xx, yy]);
+            break;
+          }
+        }
+      }
+    }
+    var nGS = rollN(rng, theme.greenSandN, 1);
+    for (i = 0; i < nGS && greenAdj.length; i++) {
+      growBlob(rng, cells, pick(rng, greenAdj), rollSize(rng, theme.sandSize, 1), SAND,
+        function (x, y) {
+          var t = cells[idx(x, y)];
+          return (t === ROUGH || t === FAIRWAY) && notEndpoint(x, y) && !nearPt(x, y, tee, 2);
+        });
     }
 
-    // Water hazards, off the corridor.
-    var nWater = rollN(rng, theme.waterN, ease);
-    for (i = 0; i < nWater; i++) {
-      placeBlob(rng, cells, rollSize(rng, theme.waterSize, ease), WATER,
-        function (x, y) { return isRough(x, y) && offCorridor(x, y); });
+    // Fairway bunkers pinch the ribbon's edges.
+    var nFB = rollN(rng, theme.fwSandN, ease);
+    for (i = 0; i < nFB && endK > startK; i++) {
+      k = startK + ri(rng, endK - startK + 1);
+      var side = rng() < 0.5 ? -1 : 1;
+      growBlob(rng, cells, [centerline[k][0] + side * 2, centerline[k][1]],
+        rollSize(rng, theme.sandSize, 1), SAND, function (x, y) {
+          var t = cells[idx(x, y)];
+          return (t === ROUGH || t === FAIRWAY) && offCorridor(x, y) &&
+            notEndpoint(x, y) && !nearPt(x, y, tee, 2) && !nearPt(x, y, cup, 2);
+        });
     }
 
-    // Tree clusters, off the corridor.
-    var nTrees = rollN(rng, theme.treeN, ease);
-    for (i = 0; i < nTrees; i++) {
-      placeBlob(rng, cells, rollSize(rng, theme.treeSize, ease), TREE,
-        function (x, y) { return isRough(x, y) && offCorridor(x, y); });
+    // Trees line the fairway, seeded just off the ribbon's shoulders.
+    var treeAllowed = function (x, y) { return isRough(x, y) && offCorridor(x, y); };
+    var nT = rollN(rng, theme.treeN, ease);
+    for (i = 0; i < nT && endK > startK; i++) {
+      k = startK + ri(rng, endK - startK + 1);
+      side = rng() < 0.5 ? -1 : 1;
+      growBlob(rng, cells,
+        [centerline[k][0] + side * (2 + ri(rng, 2)), centerline[k][1] + ri(rng, 3) - 1],
+        rollSize(rng, theme.treeSize, ease), TREE, treeAllowed);
+    }
+    // A copse in each dogleg elbow punishes corner-cutting.
+    for (i = 1; i < waypoints.length - 1; i++) {
+      if (rng() < 0.7) {
+        side = rng() < 0.5 ? -1 : 1;
+        growBlob(rng, cells, [waypoints[i][0] + side * 2, waypoints[i][1]],
+          Math.max(2, Math.round((3 + ri(rng, 4)) * ease)), TREE, treeAllowed);
+      }
     }
 
-    // Sand traps; the first often guards the green.
-    var nSand = rollN(rng, theme.sandN, 1);
-    for (i = 0; i < nSand; i++) {
-      var near = i === 0
-        ? [Math.max(0, Math.min(W - 1, cup.x + ri(rng, 7) - 3)),
-           Math.max(0, Math.min(H - 1, cup.y + ri(rng, 7) - 3))]
-        : pick(rng, pathCells);
-      growBlob(rng, cells, near, rollSize(rng, theme.sandSize, 1), SAND, function (x, y) {
-        return notEndpoint(x, y) &&
-          (cells[idx(x, y)] === ROUGH || cells[idx(x, y)] === FAIRWAY);
+    // Creek: a water band cutting across the line of play. You can
+    // fly over water but never land in it, so this demands a carry.
+    if (endK > startK + 5 && rng() < theme.creek * (0.5 + 0.5 * ease)) {
+      k = startK + 2 + ri(rng, endK - startK - 4);
+      var cc = centerline[k];
+      var half = 3 + ri(rng, 3);
+      var rows = rng() < theme.creekWide ? 2 : 1;
+      for (var rr = 0; rr < rows; rr++) {
+        for (var t4 = -half; t4 <= half; t4++) {
+          var wx = cc[0] + t4, wy = cc[1] + rr;
+          if (!inBounds(wx, wy)) continue;
+          var ct = cells[idx(wx, wy)];
+          if (ct !== ROUGH && ct !== FAIRWAY) continue;
+          if (nearPt(wx, wy, tee, 2) || nearPt(wx, wy, cup, 2)) continue;
+          cells[idx(wx, wy)] = WATER;
+        }
+      }
+    }
+    // Ponds flank the hole, off the playing corridor.
+    var nP = rollN(rng, theme.pondN, ease);
+    for (i = 0; i < nP; i++) {
+      placeBlob(rng, cells, rollSize(rng, theme.pondSize, ease), WATER, function (x, y) {
+        return isRough(x, y) && offCorridor(x, y) &&
+          !nearPt(x, y, tee, 2) && !nearPt(x, y, cup, 2);
       });
     }
 
@@ -341,9 +438,9 @@
         var len = 2 + ri(rng, 3);
         for (i = 0; i < len; i++) {
           if (!inBounds(sx, sy)) break;
-          var k = idx(sx, sy);
-          var t2 = cells[k];
-          if ((t2 === ROUGH || t2 === FAIRWAY) && notEndpoint(sx, sy)) slope[k] = sd;
+          var kk = idx(sx, sy);
+          var t2 = cells[kk];
+          if ((t2 === ROUGH || t2 === FAIRWAY) && notEndpoint(sx, sy)) slope[kk] = sd;
           sx += DIRS[sd][1]; sy += DIRS[sd][0];
         }
       }
@@ -351,7 +448,7 @@
 
     // Endpoints must be clean, restful spots.
     cells[idx(tee.x, tee.y)] = FAIRWAY;
-    cells[idx(cup.x, cup.y)] = FAIRWAY;
+    cells[idx(cup.x, cup.y)] = GREEN;
     slope[idx(tee.x, tee.y)] = -1;
     slope[idx(cup.x, cup.y)] = -1;
 
@@ -430,7 +527,7 @@
 
   var api = {
     W: W, H: H,
-    ROUGH: ROUGH, FAIRWAY: FAIRWAY, SAND: SAND, WATER: WATER, TREE: TREE,
+    ROUGH: ROUGH, FAIRWAY: FAIRWAY, SAND: SAND, WATER: WATER, TREE: TREE, GREEN: GREEN,
     DIRS: DIRS,
     THEMES: THEMES,
     generateCourse: generateCourse,

@@ -28,7 +28,13 @@ for (let s = 0; s < SEEDS; s++) {
     const teeCell = h.cells[h.tee.y * h.w + h.tee.x];
     const cupCell = h.cells[h.hole.y * h.w + h.hole.x];
     assert(teeCell === golf.FAIRWAY, `seed ${s} hole ${i + 1}: tee not on fairway pad`);
-    assert(cupCell === golf.FAIRWAY, `seed ${s} hole ${i + 1}: cup not on fairway pad`);
+    assert(cupCell === golf.GREEN, `seed ${s} hole ${i + 1}: cup not on the green`);
+
+    // Golf anatomy: every hole has a real green and a fairway ribbon.
+    const greenCells = h.cells.filter(c => c === golf.GREEN).length;
+    const fairwayCells = h.cells.filter(c => c === golf.FAIRWAY).length;
+    assert(greenCells >= 4, `seed ${s} hole ${i + 1}: green too small (${greenCells})`);
+    assert(fairwayCells >= 12, `seed ${s} hole ${i + 1}: fairway ribbon too thin (${fairwayCells})`);
 
     // Slopes must never sit on tee/cup and never point straight into rest cells that loop forever
     const rest = golf.resolveSlope(h, h.hole.x, h.hole.y);
