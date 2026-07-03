@@ -488,6 +488,19 @@ function bigfootGlyph(x, y) {
   return g + '</g>';
 }
 
+// The cup: a ring at the cell with a flagstick rising from it.
+function flagGlyph(x, y) {
+  var X = cx(x), Y = cy(y);
+  var top = Y - U * 0.95;
+  return '<circle cx="' + X + '" cy="' + Y + '" r="' + (U * 0.22) +
+      '" fill="#ffffff" stroke="#3f4442" stroke-width="2.8"/>' +
+    '<line x1="' + X + '" y1="' + (Y - U * 0.18) + '" x2="' + X + '" y2="' + top +
+      '" stroke="#3f4442" stroke-width="2.2" stroke-linecap="round"/>' +
+    '<path fill="#3f4442" d="M' + X + ' ' + top +
+      'L' + (X + U * 0.62) + ' ' + (top + U * 0.24) +
+      'L' + X + ' ' + (top + U * 0.48) + 'Z"/>';
+}
+
 function renderHoleSVG(hole) {
   var wpx = hole.w * U + PAD * 2;
   var hpx = hole.h * U + PAD * 2;
@@ -523,10 +536,9 @@ function renderHoleSVG(hole) {
   }
   if (hole.bigfoot) s += bigfootGlyph(hole.bigfoot.x, hole.bigfoot.y);
 
-  // tee (solid) and cup (ring)
+  // tee (solid) and cup (flagstick)
   s += '<circle cx="' + cx(hole.tee.x) + '" cy="' + cy(hole.tee.y) + '" r="' + (U * 0.30) + '" fill="#3f4442"/>';
-  s += '<circle cx="' + cx(hole.hole.x) + '" cy="' + cy(hole.hole.y) + '" r="' + (U * 0.27) +
-       '" fill="#ffffff" stroke="#3f4442" stroke-width="3.4"/>';
+  s += flagGlyph(hole.hole.x, hole.hole.y);
 
   return s + '</svg>';
 }
@@ -559,7 +571,7 @@ function legendIcon(kind) {
     case 'tree':    s += '<path fill="#4a4f4d" d="M11 3 L18 15 L4 15 Z"/><rect x="10" y="15" width="2.4" height="4" fill="#4a4f4d"/>'; break;
     case 'slope':   s += '<g stroke="#8d938f" stroke-width="2.2" stroke-linecap="round" fill="none"><line x1="5" y1="11" x2="17" y2="11"/><polyline points="13,6.5 17,11 13,15.5"/></g>'; break;
     case 'tee':     s += '<circle cx="11" cy="11" r="5.5" fill="#3f4442"/>'; break;
-    case 'cup':     s += '<circle cx="11" cy="11" r="5" fill="#fff" stroke="#3f4442" stroke-width="3"/>'; break;
+    case 'cup':     s += '<circle cx="9" cy="17" r="3.4" fill="#fff" stroke="#3f4442" stroke-width="2.2"/><line x1="9" y1="14.5" x2="9" y2="3.5" stroke="#3f4442" stroke-width="2" stroke-linecap="round"/><path fill="#3f4442" d="M9 3.5 L18 7 L9 10.5 Z"/>'; break;
   }
   return s + '</svg>';
 }
