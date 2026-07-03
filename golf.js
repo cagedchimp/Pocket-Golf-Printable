@@ -190,10 +190,67 @@
   }
 
   /* ------------------------------------------------------------------ *
+   * Themes — how much of each feature a course leans on                 *
+   * ------------------------------------------------------------------ */
+
+  // Counts are [min,max] ranges rolled per hole; sizes are blob cell
+  // counts. `slopeChance` is the odds a hole gets slope runs at all.
+  var THEMES = {
+    classic: {
+      label: 'Classic',
+      waterN: [1, 2], waterSize: [7, 18],
+      treeN: [2, 4], treeSize: [4, 13],
+      sandN: [0, 2], sandSize: [3, 6],
+      slopeChance: 0.45, slopeRuns: [1, 1],
+      nouns: null
+    },
+    forest: {
+      label: 'Deep Forest',
+      waterN: [0, 1], waterSize: [5, 10],
+      treeN: [4, 7], treeSize: [6, 16],
+      sandN: [0, 1], sandSize: [3, 5],
+      slopeChance: 0.3, slopeRuns: [1, 1],
+      nouns: ['Pines', 'Timber', 'Cedars', 'Redwoods', 'Thicket', 'Grove', 'Woods', 'Hollow']
+    },
+    lakeside: {
+      label: 'Lakeside',
+      waterN: [2, 3], waterSize: [10, 22],
+      treeN: [1, 2], treeSize: [3, 9],
+      sandN: [0, 2], sandSize: [3, 5],
+      slopeChance: 0.3, slopeRuns: [1, 1],
+      nouns: ['Lakes', 'Shores', 'Coves', 'Marsh', 'Waters', 'Inlet', 'Bayou', 'Springs']
+    },
+    dunes: {
+      label: 'Sandy Dunes',
+      waterN: [0, 1], waterSize: [5, 9],
+      treeN: [0, 1], treeSize: [3, 6],
+      sandN: [3, 5], sandSize: [4, 9],
+      slopeChance: 0.35, slopeRuns: [1, 2],
+      nouns: ['Dunes', 'Sands', 'Links', 'Flats', 'Barrens', 'Shells', 'Salt Flats']
+    },
+    highlands: {
+      label: 'Highlands',
+      waterN: [0, 1], waterSize: [6, 12],
+      treeN: [1, 3], treeSize: [4, 10],
+      sandN: [0, 2], sandSize: [3, 6],
+      slopeChance: 1.0, slopeRuns: [2, 4],
+      nouns: ['Highlands', 'Bluffs', 'Ridge', 'Knolls', 'Heights', 'Fells', 'Crags', 'Moors']
+    }
+  };
+
+  function rollN(rng, range, ease) {
+    var n = range[0] + ri(rng, range[1] - range[0] + 1);
+    return Math.round(n * ease);
+  }
+  function rollSize(rng, range, ease) {
+    return Math.max(2, Math.round((range[0] + ri(rng, range[1] - range[0] + 1)) * ease));
+  }
+
+  /* ------------------------------------------------------------------ *
    * Hole generation                                                     *
    * ------------------------------------------------------------------ */
 
-  function buildHoleAttempt(rng, ease) {
+  function buildHoleAttempt(rng, ease, theme) {
     var cells = new Array(W * H).fill(ROUGH);
     var slope = new Array(W * H).fill(-1);
 
@@ -247,45 +304,48 @@
       growBlob(rng, cells, p, 8 + ri(rng, 10), FAIRWAY, isRough);
     }
 
-    // Water hazards (0-2), off the corridor.
-    var nWater = Math.round((rng() < 0.75 ? 1 : 2) * ease);
+    // Water hazards, off the corridor.
+    var nWater = rollN(rng, theme.waterN, ease);
     for (i = 0; i < nWater; i++) {
-      placeBlob(rng, cells, Math.round((7 + ri(rng, 12)) * ease), WATER,
+      placeBlob(rng, cells, rollSize(rng, theme.waterSize, ease), WATER,
         function (x, y) { return isRough(x, y) && offCorridor(x, y); });
     }
 
-    // Tree clusters (2-4), off the corridor.
-    var nTrees = Math.max(1, Math.round((2 + ri(rng, 3)) * ease));
+    // Tree clusters, off the corridor.
+    var nTrees = rollN(rng, theme.treeN, ease);
     for (i = 0; i < nTrees; i++) {
-      placeBlob(rng, cells, Math.round((4 + ri(rng, 10)) * ease), TREE,
+      placeBlob(rng, cells, rollSize(rng, theme.treeSize, ease), TREE,
         function (x, y) { return isRough(x, y) && offCorridor(x, y); });
     }
 
-    // Sand traps (0-2); one often guards the green.
-    var nSand = ri(rng, 3);
+    // Sand traps; the first often guards the green.
+    var nSand = rollN(rng, theme.sandN, 1);
     for (i = 0; i < nSand; i++) {
       var near = i === 0
         ? [Math.max(0, Math.min(W - 1, cup.x + ri(rng, 7) - 3)),
            Math.max(0, Math.min(H - 1, cup.y + ri(rng, 7) - 3))]
         : pick(rng, pathCells);
-      growBlob(rng, cells, near, 3 + ri(rng, 4), SAND, function (x, y) {
+      growBlob(rng, cells, near, rollSize(rng, theme.sandSize, 1), SAND, function (x, y) {
         return notEndpoint(x, y) &&
           (cells[idx(x, y)] === ROUGH || cells[idx(x, y)] === FAIRWAY);
       });
     }
 
-    // Slopes: occasionally, a short run of arrows in one direction.
-    if (rng() < 0.45) {
-      var sd = ri(rng, 4);
-      var sx = 1 + ri(rng, W - 2), sy = 2 + ri(rng, H - 4);
-      var len = 2 + ri(rng, 3);
-      for (i = 0; i < len; i++) {
-        if (!inBounds(sx, sy)) break;
-        var k = idx(sx, sy);
-        var t2 = cells[k];
-        if ((t2 === ROUGH || t2 === FAIRWAY) && notEndpoint(sx, sy)) slope[k] = sd;
-        // lay arrows perpendicular to their pointing direction (a bank)
-        sx += DIRS[sd][1]; sy += DIRS[sd][0];
+    // Slopes: short runs of arrows laid perpendicular to their
+    // pointing direction, like a bank the ball rolls down.
+    if (rng() < theme.slopeChance) {
+      var nRuns = theme.slopeRuns[0] + ri(rng, theme.slopeRuns[1] - theme.slopeRuns[0] + 1);
+      for (var run = 0; run < nRuns; run++) {
+        var sd = ri(rng, 4);
+        var sx = 1 + ri(rng, W - 2), sy = 2 + ri(rng, H - 4);
+        var len = 2 + ri(rng, 3);
+        for (i = 0; i < len; i++) {
+          if (!inBounds(sx, sy)) break;
+          var k = idx(sx, sy);
+          var t2 = cells[k];
+          if ((t2 === ROUGH || t2 === FAIRWAY) && notEndpoint(sx, sy)) slope[k] = sd;
+          sx += DIRS[sd][1]; sy += DIRS[sd][0];
+        }
       }
     }
 
@@ -298,12 +358,13 @@
     return { w: W, h: H, cells: cells, slope: slope, tee: tee, hole: cup, bigfoot: null };
   }
 
-  function generateHole(rng) {
+  function generateHole(rng, theme) {
+    theme = theme || THEMES.classic;
     for (var attempt = 0; attempt < 300; attempt++) {
       // Back off obstacle density if we keep failing, so generation
       // always terminates with a playable hole.
       var ease = attempt < 60 ? 1 : Math.max(0.15, 1 - (attempt - 60) / 120);
-      var hole = buildHoleAttempt(rng, ease);
+      var hole = buildHoleAttempt(rng, ease, theme);
       var best = solve(hole);
       if (best !== null && best >= 3 && best <= 6) {
         hole.best = best;
@@ -311,7 +372,7 @@
       }
     }
     // Practically unreachable: an empty hole is always solvable.
-    var fallback = buildHoleAttempt(rng, 0);
+    var fallback = buildHoleAttempt(rng, 0, theme);
     fallback.best = solve(fallback);
     return fallback;
   }
@@ -329,15 +390,23 @@
   var NAME_C = ['Golf Club', 'Links', 'Country Club', 'Golf Course',
     'Municipal Links', 'G.C.'];
 
-  function generateCourse(seedStr, numHoles) {
+  function generateCourse(seedStr, numHoles, themeKey) {
     numHoles = numHoles || 18;
-    var seedFn = xmur3(String(seedStr));
+    var theme = THEMES[themeKey] || THEMES.classic;
+    themeKey = THEMES[themeKey] ? themeKey : 'classic';
+    // Theme is part of the seed so the same seed string gives a
+    // different (but still reproducible) course per theme.
+    var seedFn = xmur3(themeKey + '|' + String(seedStr));
     var rng = mulberry32(seedFn());
 
-    var name = pick(rng, NAME_A) + ' ' + pick(rng, NAME_B) + ' ' + pick(rng, NAME_C);
+    // Themed courses draw their middle name from the theme's pool.
+    var nounPool = theme.nouns
+      ? (rng() < 0.8 ? theme.nouns : NAME_B)
+      : NAME_B;
+    var name = pick(rng, NAME_A) + ' ' + pick(rng, nounPool) + ' ' + pick(rng, NAME_C);
 
     var holes = [];
-    for (var i = 0; i < numHoles; i++) holes.push(generateHole(rng));
+    for (var i = 0; i < numHoles; i++) holes.push(generateHole(rng, theme));
 
     // In about 1/3 of courses, Bigfoot hides on one hole (free Mulligan!).
     if (rng() < 1 / 3) {
@@ -353,13 +422,17 @@
       }
     }
 
-    return { name: name, seed: String(seedStr), holes: holes, par: numHoles * 6 };
+    return {
+      name: name, seed: String(seedStr), theme: themeKey,
+      themeLabel: theme.label, holes: holes, par: numHoles * 6
+    };
   }
 
   var api = {
     W: W, H: H,
     ROUGH: ROUGH, FAIRWAY: FAIRWAY, SAND: SAND, WATER: WATER, TREE: TREE,
     DIRS: DIRS,
+    THEMES: THEMES,
     generateCourse: generateCourse,
     generateHole: generateHole,
     solve: solve,

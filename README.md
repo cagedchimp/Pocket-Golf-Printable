@@ -8,13 +8,32 @@ pencil and a d6.
 
 ## Use it
 
-Open `index.html` in any browser — no build step, no server, no
+**Play it here: <https://cagedchimp.github.io/Pocket-Golf-Printable/>**
+(deployed automatically by GitHub Actions on every push)
+
+Or open `index.html` in any browser — no build step, no server, no
 dependencies.
 
 - **Seed** — every course is procedurally generated from a seed string.
-  The same seed always produces the same course, so you can share a
-  seed with friends and play the same track.
+  The same seed always produces the same course, and the seed, style,
+  and hole count live in the URL, so you can share a link with friends
+  and play the same track.
 - **🎲 New course** — random seed, fresh course.
+- **Style** — terrain themes that change what the course leans on:
+
+  | Style | Character |
+  | --- | --- |
+  | Classic | A bit of everything |
+  | Deep Forest | Dense pine thickets crowd the corridors |
+  | Lakeside | Big water carries and shoreline greens |
+  | Sandy Dunes | Bunkers everywhere, barely a tree in sight |
+  | Highlands | Slope arrows send your ball rolling |
+
+  Example courses to try:
+  - [Deep Forest](https://cagedchimp.github.io/Pocket-Golf-Printable/?seed=demo-course&theme=forest&holes=18)
+  - [Lakeside](https://cagedchimp.github.io/Pocket-Golf-Printable/?seed=demo-course&theme=lakeside&holes=18)
+  - [Sandy Dunes](https://cagedchimp.github.io/Pocket-Golf-Printable/?seed=demo-course&theme=dunes&holes=18)
+  - [Highlands](https://cagedchimp.github.io/Pocket-Golf-Printable/?seed=demo-course&theme=highlands&holes=18)
 - **Holes** — 9 or 18.
 - **Paper** — Letter (quarters are 4.25 × 5.5 in) or A4 (quarters are
   exactly A6).

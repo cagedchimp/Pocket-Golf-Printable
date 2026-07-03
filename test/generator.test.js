@@ -36,6 +36,48 @@ for (let s = 0; s < SEEDS; s++) {
   });
 }
 
+// Themes: each generates solvable holes and skews terrain as advertised.
+function countType(course, type) {
+  let n = 0;
+  course.holes.forEach(h => h.cells.forEach(c => { if (c === type) n++; }));
+  return n / course.holes.length;
+}
+function countSlopes(course) {
+  let n = 0;
+  course.holes.forEach(h => h.slope.forEach(s => { if (s >= 0) n++; }));
+  return n / course.holes.length;
+}
+
+const themed = {};
+for (const key of Object.keys(golf.THEMES)) {
+  const course = golf.generateCourse('theme-check', 18, key);
+  assert(course.theme === key, `theme ${key}: not recorded on course`);
+  course.holes.forEach((h, i) => {
+    const best = golf.solve(h);
+    assert(best !== null && best >= 3 && best <= 6,
+      `theme ${key} hole ${i + 1}: best=${best}`);
+  });
+  themed[key] = course;
+}
+
+assert(countType(themed.forest, golf.TREE) > countType(themed.classic, golf.TREE) * 1.5,
+  'forest theme should have noticeably more trees than classic');
+assert(countType(themed.lakeside, golf.WATER) > countType(themed.classic, golf.WATER) * 1.5,
+  'lakeside theme should have noticeably more water than classic');
+assert(countType(themed.dunes, golf.SAND) > countType(themed.classic, golf.SAND) * 1.5,
+  'dunes theme should have noticeably more sand than classic');
+assert(countSlopes(themed.highlands) > countSlopes(themed.classic) * 1.5,
+  'highlands theme should have noticeably more slopes than classic');
+console.log('Avg cells/hole —',
+  'classic trees:', countType(themed.classic, golf.TREE).toFixed(1),
+  '| forest trees:', countType(themed.forest, golf.TREE).toFixed(1),
+  '| classic water:', countType(themed.classic, golf.WATER).toFixed(1),
+  '| lakeside water:', countType(themed.lakeside, golf.WATER).toFixed(1),
+  '| classic sand:', countType(themed.classic, golf.SAND).toFixed(1),
+  '| dunes sand:', countType(themed.dunes, golf.SAND).toFixed(1),
+  '| classic slopes:', countSlopes(themed.classic).toFixed(1),
+  '| highlands slopes:', countSlopes(themed.highlands).toFixed(1));
+
 // Determinism: same seed -> identical course
 const a = golf.generateCourse('determinism', 9);
 const b = golf.generateCourse('determinism', 9);

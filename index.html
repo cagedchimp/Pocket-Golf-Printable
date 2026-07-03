@@ -217,6 +217,8 @@
   <label for="seed">Seed</label>
   <input id="seed" type="text" spellcheck="false">
   <button id="random">🎲 New course</button>
+  <label for="theme">Style</label>
+  <select id="theme"></select>
   <label for="holes">Holes</label>
   <select id="holes">
     <option value="9">9</option>
@@ -418,7 +420,8 @@ function titleCard(course) {
     '<div>' +
       '<div class="flag">⛳</div>' +
       '<h2>' + course.name + '</h2>' +
-      '<div class="sub">' + course.holes.length + ' holes &middot; Par ' + course.par + '</div>' +
+      '<div class="sub">' + course.holes.length + ' holes &middot; Par ' + course.par +
+        ' &middot; ' + course.themeLabel + '</div>' +
       '<div class="seed">seed: ' + course.seed + '</div>' +
     '</div>' +
     '<div>' +
@@ -463,10 +466,20 @@ function scoreCard(course) {
  *  Page assembly                                                       *
  * ==================================================================== */
 
+function syncURL() {
+  var params = new URLSearchParams();
+  params.set('seed', document.getElementById('seed').value.trim() || 'pocket-golf');
+  params.set('theme', document.getElementById('theme').value);
+  params.set('holes', document.getElementById('holes').value);
+  history.replaceState(null, '', '?' + params.toString());
+}
+
 function rebuild() {
   var seed = document.getElementById('seed').value.trim() || 'pocket-golf';
   var numHoles = parseInt(document.getElementById('holes').value, 10);
-  var course = G.generateCourse(seed, numHoles);
+  var theme = document.getElementById('theme').value;
+  var course = G.generateCourse(seed, numHoles, theme);
+  syncURL();
 
   var quarters = [titleCard(course)];
   course.holes.forEach(function (h, i) { quarters.push(holeCard(h, i + 1)); });
@@ -491,11 +504,23 @@ function randomSeed() {
          Math.random().toString(36).slice(2, 7);
 }
 
+// Populate the theme selector from the generator's theme registry.
+(function () {
+  var sel = document.getElementById('theme');
+  Object.keys(G.THEMES).forEach(function (key) {
+    var opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = G.THEMES[key].label;
+    sel.appendChild(opt);
+  });
+})();
+
 document.getElementById('random').addEventListener('click', function () {
   document.getElementById('seed').value = randomSeed();
   rebuild();
 });
 document.getElementById('seed').addEventListener('change', rebuild);
+document.getElementById('theme').addEventListener('change', rebuild);
 document.getElementById('holes').addEventListener('change', rebuild);
 document.getElementById('paper').addEventListener('change', function (e) {
   var a4 = e.target.value === 'a4';
@@ -505,7 +530,15 @@ document.getElementById('paper').addEventListener('change', function (e) {
 });
 document.getElementById('print').addEventListener('click', function () { window.print(); });
 
-document.getElementById('seed').value = randomSeed();
+// Restore state from the URL so course links are shareable.
+(function () {
+  var params = new URLSearchParams(location.search);
+  document.getElementById('seed').value = params.get('seed') || randomSeed();
+  if (params.get('theme') && G.THEMES[params.get('theme')]) {
+    document.getElementById('theme').value = params.get('theme');
+  }
+  if (params.get('holes') === '9') document.getElementById('holes').value = '9';
+})();
 rebuild();
 </script>
 </body>
