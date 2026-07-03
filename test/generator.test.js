@@ -124,6 +124,46 @@ console.log('Avg cells/hole —',
   '| classic slopes:', countSlopes(themed.classic).toFixed(1),
   '| highlands slopes:', countSlopes(themed.highlands).toFixed(1));
 
+// Difficulty tiers: casual holes are always reachable in 3 optimal
+// strokes, tough holes never are; tough piles on water and trims the
+// mulligan budget; and the default tier is exactly the legacy call.
+{
+  for (let s = 0; s < 4; s++) {
+    const legacy = golf.generateCourse('diff-' + s, 9, 'lakeside');
+    const explicit = golf.generateCourse('diff-' + s, 9, 'lakeside', 'standard');
+    assert(JSON.stringify(legacy) === JSON.stringify(explicit),
+      `diff-${s}: standard should equal the legacy 3-arg call`);
+
+    const casual = golf.generateCourse('diff-' + s, 9, 'lakeside', 'casual');
+    const tough = golf.generateCourse('diff-' + s, 9, 'lakeside', 'tough');
+    assert(casual.mulligans === 8 && legacy.mulligans === 6 && tough.mulligans === 4,
+      `diff-${s}: mulligan budgets wrong`);
+    assert(casual.rating >= 1 && casual.rating <= 3 && tough.rating >= 2,
+      `diff-${s}: ratings out of range (casual ${casual.rating}, tough ${tough.rating})`);
+    casual.holes.forEach((h, i) =>
+      assert(h.best === 3, `diff-${s} casual hole ${i + 1}: best=${h.best}, want 3`));
+    tough.holes.forEach((h, i) =>
+      assert(h.best >= 4 && h.best <= 6, `diff-${s} tough hole ${i + 1}: best=${h.best}, want 4-6`));
+
+    const water = c => c.holes.reduce(
+      (n, h) => n + h.cells.filter(t => t === golf.WATER).length, 0);
+    assert(water(tough) > water(legacy),
+      `diff-${s}: tough lakeside should carry more water (${water(tough)} vs ${water(legacy)})`);
+
+    assert(JSON.stringify(tough) ===
+      JSON.stringify(golf.generateCourse('diff-' + s, 9, 'lakeside', 'tough')),
+      `diff-${s}: tough generation not deterministic`);
+    checkWonder(casual, `diff-${s} casual`);
+    checkWonder(tough, `diff-${s} tough`);
+  }
+  // Tough works across themes, not just the watery one.
+  for (const themeKey of ['classic', 'forest', 'highlands']) {
+    const c = golf.generateCourse('diff-theme', 9, themeKey, 'tough');
+    c.holes.forEach((h, i) =>
+      assert(h.best >= 4, `tough ${themeKey} hole ${i + 1}: best=${h.best}`));
+  }
+}
+
 // Play-mode move logic: from the tee (and along a played-out route),
 // every roll offers at least one legal move, no offered landing sits
 // on water or trees, and rest positions agree with the slope solver.

@@ -35,6 +35,12 @@ dependencies.
   - [Lakeside](https://cagedchimp.github.io/Pocket-Golf-Printable/?seed=demo-course&theme=lakeside&holes=18)
   - [Sandy Dunes](https://cagedchimp.github.io/Pocket-Golf-Printable/?seed=demo-course&theme=dunes&holes=18)
   - [Highlands](https://cagedchimp.github.io/Pocket-Golf-Printable/?seed=demo-course&theme=highlands&holes=18)
+- **Difficulty** — Casual, Standard, or Tough. Tough courses can't be
+  reached in 3 perfect strokes, pile on hazards — greenside moats,
+  island greens, creeks too wide for a mid roll — and allow only 4
+  mulligans (Casual allows 8). Every course shows a measured ★☆☆-★★★
+  rating on its title page. Try
+  [Lakeside on Tough](https://cagedchimp.github.io/Pocket-Golf-Printable/?seed=demo-course&theme=lakeside&diff=tough&holes=18).
 - **Holes** — 9 or 18.
 - **Paper** — Letter (quarters are 4.25 × 5.5 in) or A4 (quarters are
   exactly A6).
