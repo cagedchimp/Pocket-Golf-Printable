@@ -718,28 +718,52 @@ function beginHole(i) {
 }
 
 function renderBoard() {
-  var hole = curHole();
   var board = el('p-board');
-  board.innerHTML = renderHoleSVG(hole);
+  board.innerHTML = renderHoleSVG(curHole());
   play.svg = board.querySelector('svg');
   play.overlay = svgNode('g', {});
   play.svg.appendChild(play.overlay);
-  // Spotting Bigfoot earns a free mulligan — tap his footprints.
-  if (hole.bigfoot && !play.bigfootFound) {
-    var bf = svgNode('circle', {
-      cx: cx(hole.bigfoot.x), cy: cy(hole.bigfoot.y), r: U * 0.7,
-      fill: 'transparent', 'class': 'target'
-    });
-    bf.addEventListener('click', function () {
-      if (!play || play.bigfootFound) return;
-      play.bigfootFound = true;
-      play.mulligans++;
-      setMsg('<b>You spotted Bigfoot!</b> Free mulligan earned.');
-      updateHUD();
-    });
-    play.svg.appendChild(bf);
-  }
+  // One tap handler on the whole board, resolved by coordinate: iOS
+  // Safari doesn't reliably fire click events on dynamically inserted
+  // SVG children, and per-circle hit areas are small on phones anyway.
+  play.svg.addEventListener('click', boardTap);
   redrawOverlay();
+}
+
+// Map a tap/click on the board to a legal move (with a little
+// finger-slop tolerance when the nearest target is unambiguous),
+// or to Bigfoot's footprints for the free mulligan.
+function boardTap(evt) {
+  if (!play) return;
+  var pt = play.svg.createSVGPoint();
+  pt.x = evt.clientX;
+  pt.y = evt.clientY;
+  var p = pt.matrixTransform(play.svg.getScreenCTM().inverse());
+  function distTo(gx, gy) {
+    var dx = (p.x - cx(gx)) / U, dy = (p.y - cy(gy)) / U;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  if (play.moves) {
+    var best = null, bestD = Infinity, second = Infinity;
+    play.moves.forEach(function (m) {
+      var d = distTo(m.x, m.y);
+      if (d < bestD) { second = bestD; bestD = d; best = m; }
+      else if (d < second) second = d;
+    });
+    if (best && (bestD <= 0.5 || (bestD <= 1.1 && second > 1.4))) {
+      applyMove(best);
+      return;
+    }
+  }
+
+  var hole = curHole();
+  if (hole.bigfoot && !play.bigfootFound && distTo(hole.bigfoot.x, hole.bigfoot.y) <= 0.8) {
+    play.bigfootFound = true;
+    play.mulligans++;
+    setMsg('<b>You spotted Bigfoot!</b> Free mulligan earned.');
+    updateHUD();
+  }
 }
 
 function redrawOverlay() {
@@ -770,15 +794,13 @@ function redrawOverlay() {
   if (play.moves) {
     play.moves.forEach(function (m) {
       var putt = m.dist !== play.rollSwing;
-      var c = svgNode('circle', {
+      o.appendChild(svgNode('circle', {
         cx: cx(m.x), cy: cy(m.y), r: U * 0.44,
         fill: 'rgba(159,214,168,.55)', stroke: '#4f8f5c',
         'stroke-width': putt ? 1.4 : 2.4,
         'stroke-dasharray': putt ? '3 3' : 'none',
         'class': 'target'
-      });
-      c.addEventListener('click', function () { applyMove(m); });
-      o.appendChild(c);
+      }));
     });
   }
 
