@@ -192,6 +192,57 @@
   }
 
   /* ------------------------------------------------------------------ *
+   * Playable moves — legality of a single shot, shared with the         *
+   * website's on-screen play mode                                       *
+   * ------------------------------------------------------------------ */
+
+  // Landing cells for a straight shot of exactly `dist` spaces from
+  // (x, y): 8 directions, trees block unless hitting from fairway,
+  // water and trees can be flown over but never landed on. Each entry
+  // carries the rest position after slope arrows are followed.
+  function shotTargets(hole, x, y, dist) {
+    var out = [];
+    if (dist < 1) return out;
+    var fromType = hole.cells[idx(x, y)];
+    for (var di = 0; di < 8; di++) {
+      var ok = true, nx = x, ny = y;
+      for (var step = 1; step <= dist; step++) {
+        nx = x + DIRS[di][0] * step;
+        ny = y + DIRS[di][1] * step;
+        if (!inBounds(nx, ny)) { ok = false; break; }
+        var t = hole.cells[idx(nx, ny)];
+        if (t === TREE && fromType !== FAIRWAY) { ok = false; break; }
+        if (step === dist && (t === TREE || t === WATER)) ok = false;
+      }
+      if (!ok) continue;
+      var rest = resolveSlope(hole, nx, ny);
+      out.push({ x: nx, y: ny, rx: rest[0], ry: rest[1], dist: dist });
+    }
+    return out;
+  }
+
+  // Every legal destination for a die roll from (x, y): the full swing
+  // (fairway +1, sand -1, rough/green exactly the roll) plus the
+  // always-allowed putt of 1 space — or 1-2 spaces on the green.
+  // Deduped by landing cell; each move keeps the distance that got it.
+  function movesForRoll(hole, x, y, roll) {
+    var t = hole.cells[idx(x, y)];
+    var swing = roll + (t === FAIRWAY ? 1 : t === SAND ? -1 : 0);
+    var dists = [swing, 1];
+    if (t === GREEN) dists.push(2);
+    var seen = {}, out = [];
+    dists.forEach(function (d) {
+      shotTargets(hole, x, y, d).forEach(function (m) {
+        var k = idx(m.x, m.y);
+        if (seen[k]) return;
+        seen[k] = true;
+        out.push(m);
+      });
+    });
+    return out;
+  }
+
+  /* ------------------------------------------------------------------ *
    * Themes — how much of each feature a course leans on                 *
    * ------------------------------------------------------------------ */
 
@@ -534,6 +585,8 @@
     generateHole: generateHole,
     solve: solve,
     resolveSlope: resolveSlope,
+    shotTargets: shotTargets,
+    movesForRoll: movesForRoll,
     mulberry32: mulberry32,
     xmur3: xmur3
   };

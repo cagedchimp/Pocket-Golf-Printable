@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pocket Golf Printable</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛳</text></svg>">
 <style>
   :root {
     --ink: #3f4442;
@@ -195,10 +196,139 @@
   }
   .score-card .players .line { border-bottom: 1.2px solid var(--ink); padding-top: 12px; }
 
+  /* ------------------------------ play mode ------------------------ */
+  #play { display: none; padding: 14px 10px 46px; }
+  body.playing #play { display: block; }
+  body.playing #sheets { display: none; }
+  body.playing .print-only { display: none; }
+
+  .play-wrap {
+    max-width: 880px;
+    margin: 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+    align-items: flex-start;
+  }
+  .play-board {
+    flex: 1 1 340px;
+    max-width: 480px;
+    background: var(--paper);
+    border-radius: 12px;
+    box-shadow: 0 3px 14px rgba(0,0,0,.22);
+    padding: 8px;
+  }
+  .play-board svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: calc(100dvh - 190px);
+    touch-action: manipulation;
+  }
+  .play-board svg .target { cursor: pointer; }
+
+  .play-side {
+    flex: 1 1 260px;
+    max-width: 480px;
+    display: grid;
+    gap: 10px;
+    align-content: start;
+  }
+  .play-card {
+    background: var(--paper);
+    border-radius: 12px;
+    box-shadow: 0 3px 14px rgba(0,0,0,.18);
+    padding: 12px 14px;
+  }
+  .play-card h2 { font-size: 15px; margin: 0 0 2px; letter-spacing: .02em; }
+  .play-card .sub { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; opacity: .65; }
+
+  .play-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    font-size: 13px;
+    margin-top: 8px;
+  }
+  .play-stats b { font-size: 15px; }
+
+  .play-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .play-actions button {
+    font: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    padding: 12px 16px;      /* generous tap targets for touch */
+    border: none;
+    border-radius: 9px;
+    cursor: pointer;
+    background: var(--fairway);
+    color: var(--ink);
+    min-height: 44px;
+  }
+  .play-actions button.primary { background: #9fd6a8; }
+  .play-actions button.next { background: #f6d78c; }
+  .play-actions button:disabled { opacity: .4; cursor: default; }
+  #p-die {
+    font-size: 40px;
+    line-height: 1;
+    min-width: 42px;
+    text-align: center;
+  }
+  #p-msg { font-size: 13px; line-height: 1.45; min-height: 2.6em; }
+  #p-msg b { font-size: 14px; }
+
+  .score-strip { display: flex; flex-wrap: wrap; gap: 4px; }
+  .score-strip .cell {
+    width: 30px; height: 34px;
+    border: 1.5px solid var(--dot);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+  }
+  .score-strip .cell .n { font-size: 8px; opacity: .55; }
+  .score-strip .cell.now { border-color: var(--ink); border-width: 2px; }
+  .score-strip .cell.done { background: var(--fairway); font-weight: 700; }
+
+  .play-summary { text-align: center; padding: 22px 14px; }
+  .play-summary .flag { font-size: 40px; }
+  .play-summary h2 { margin: 6px 0 2px; }
+  .play-summary .big { font-size: 30px; font-weight: 700; margin: 10px 0 2px; }
+  .play-summary table {
+    border-collapse: collapse;
+    margin: 14px auto 4px;
+    font-size: 12px;
+  }
+  .play-summary th, .play-summary td { border: 1px solid var(--ink); padding: 3px 7px; }
+  .play-summary th { background: var(--fairway); }
+
+  /* phones: stack panels, keep the whole hole visible, and pin the
+     roll/mulligan controls to the bottom of the screen */
+  @media (max-width: 640px) {
+    .controls { padding: 10px 12px; gap: 8px; }
+    .controls h1 { flex-basis: 100%; margin: 0; }
+    #play { padding-bottom: 160px; }
+    .play-board { max-width: 100%; }
+    .play-board svg { max-height: 62dvh; }
+    .play-actions button { flex: 1 1 auto; }
+    .play-card.actions {
+      position: fixed;
+      left: 8px; right: 8px;
+      bottom: max(8px, env(safe-area-inset-bottom));
+      z-index: 20;
+      box-shadow: 0 4px 22px rgba(0,0,0,.35);
+    }
+  }
+
   /* ------------------------------ print ---------------------------- */
   @media print {
     body { background: #fff; }
     .controls { display: none; }
+    #play { display: none !important; }
+    body.playing #sheets { display: block; }
     #sheets { padding: 0; }
     .sheet {
       margin: 0;
@@ -230,10 +360,40 @@
     <option value="a4">A4</option>
   </select>
   <span class="spacer"></span>
+  <button id="play-toggle">▶ Play</button>
   <button id="print" class="primary">🖨 Print</button>
 </div>
 
 <div id="sheets"></div>
+
+<div id="play">
+  <div class="play-wrap">
+    <div class="play-board" id="p-board"></div>
+    <div class="play-side">
+      <div class="play-card">
+        <h2 id="p-course"></h2>
+        <div class="sub" id="p-holeinfo"></div>
+        <div class="play-stats">
+          <span>Strokes <b id="p-strokes">0</b>&thinsp;/&thinsp;6</span>
+          <span>Total <b id="p-total">0</b></span>
+          <span>Mulligans <b id="p-mull">6</b></span>
+        </div>
+      </div>
+      <div class="play-card actions">
+        <div class="play-actions">
+          <button id="p-roll" class="primary">🎲 Roll</button>
+          <span id="p-die"></span>
+          <button id="p-mulligan" disabled>↩ Mulligan</button>
+          <button id="p-next" class="next" hidden>Next hole ▸</button>
+        </div>
+        <p id="p-msg"></p>
+      </div>
+      <div class="play-card">
+        <div class="score-strip" id="p-strip"></div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script src="golf.js"></script>
 <script>
@@ -467,6 +627,281 @@ function scoreCard(course) {
 }
 
 /* ==================================================================== *
+ *  Play mode — play the course on screen with a virtual d6             *
+ * ==================================================================== */
+
+var SVG_NS = 'http://www.w3.org/2000/svg';
+var DIE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+var play = null; // null when in print view; round state while playing
+
+function el(id) { return document.getElementById(id); }
+
+function svgNode(name, attrs) {
+  var n = document.createElementNS(SVG_NS, name);
+  for (var k in attrs) n.setAttribute(k, attrs[k]);
+  return n;
+}
+
+function setMsg(html) { el('p-msg').innerHTML = html; }
+
+function scoreName(strokes) {
+  if (strokes === 1) return 'Hole-in-one!!';
+  var d = strokes - 6;
+  if (d <= -4) return 'Condor!?';
+  if (d === -3) return 'Albatross!';
+  if (d === -2) return 'Eagle!';
+  if (d === -1) return 'Birdie!';
+  if (d === 0) return 'Par';
+  if (d === 1) return 'Bogey';
+  if (d === 2) return 'Double bogey';
+  return d + ' over par';
+}
+
+function terrainNote(t) {
+  if (t === G.FAIRWAY) return 'On the fairway — next roll gets +1, and you may hit over trees.';
+  if (t === G.SAND) return 'In the sand — next roll takes −1.';
+  if (t === G.GREEN) return 'On the green — putts may move 1 or 2 spaces.';
+  return 'In the rough — move exactly your next roll.';
+}
+
+function startPlay() {
+  var seed = el('seed').value.trim() || 'pocket-golf';
+  play = {
+    course: G.generateCourse(seed, parseInt(el('holes').value, 10), el('theme').value),
+    hi: 0, scores: [], mulligans: 6, bigfootFound: false,
+    ball: null, strokes: 0, roll: null, rollSwing: 0, moves: null,
+    segments: [], over: false
+  };
+  document.body.classList.add('playing');
+  el('play-toggle').textContent = '✕ Exit play';
+  el('p-course').textContent = play.course.name;
+  syncURL();
+  beginHole(0);
+}
+
+function exitPlay() {
+  play = null;
+  document.body.classList.remove('playing');
+  el('play-toggle').textContent = '▶ Play';
+  syncURL();
+}
+
+function curHole() { return play.course.holes[play.hi]; }
+
+function beginHole(i) {
+  play.hi = i;
+  var hole = curHole();
+  play.ball = { x: hole.tee.x, y: hole.tee.y };
+  play.strokes = 0;
+  play.roll = null;
+  play.moves = null;
+  play.segments = [];
+  play.over = false;
+  el('p-die').textContent = '';
+  el('p-next').hidden = true;
+  renderBoard();
+  setMsg('Roll the die, then tap a highlighted spot to hit the ball there. ' +
+    'Solid rings are your full shot; dashed rings are putts.');
+  updateHUD();
+}
+
+function renderBoard() {
+  var hole = curHole();
+  var board = el('p-board');
+  board.innerHTML = renderHoleSVG(hole);
+  play.svg = board.querySelector('svg');
+  play.overlay = svgNode('g', {});
+  play.svg.appendChild(play.overlay);
+  // Spotting Bigfoot earns a free mulligan — tap his footprints.
+  if (hole.bigfoot && !play.bigfootFound) {
+    var bf = svgNode('circle', {
+      cx: cx(hole.bigfoot.x), cy: cy(hole.bigfoot.y), r: U * 0.7,
+      fill: 'transparent', 'class': 'target'
+    });
+    bf.addEventListener('click', function () {
+      if (!play || play.bigfootFound) return;
+      play.bigfootFound = true;
+      play.mulligans++;
+      setMsg('<b>You spotted Bigfoot!</b> Free mulligan earned.');
+      updateHUD();
+    });
+    play.svg.appendChild(bf);
+  }
+  redrawOverlay();
+}
+
+function redrawOverlay() {
+  var o = play.overlay;
+  while (o.firstChild) o.removeChild(o.firstChild);
+
+  // pencil trail of the shots so far (dashed part = slope carry)
+  play.segments.forEach(function (s) {
+    o.appendChild(svgNode('line', {
+      x1: cx(s.from[0]), y1: cy(s.from[1]), x2: cx(s.land[0]), y2: cy(s.land[1]),
+      stroke: '#3f4442', 'stroke-width': 2.2, 'stroke-linecap': 'round',
+      opacity: 0.75, 'pointer-events': 'none'
+    }));
+    if (s.rest[0] !== s.land[0] || s.rest[1] !== s.land[1]) {
+      o.appendChild(svgNode('line', {
+        x1: cx(s.land[0]), y1: cy(s.land[1]), x2: cx(s.rest[0]), y2: cy(s.rest[1]),
+        stroke: '#3f4442', 'stroke-width': 2.2, 'stroke-dasharray': '3 4',
+        'stroke-linecap': 'round', opacity: 0.75, 'pointer-events': 'none'
+      }));
+    }
+    o.appendChild(svgNode('circle', {
+      cx: cx(s.rest[0]), cy: cy(s.rest[1]), r: 2.6,
+      fill: '#3f4442', 'pointer-events': 'none'
+    }));
+  });
+
+  // legal landing spots for the current roll
+  if (play.moves) {
+    play.moves.forEach(function (m) {
+      var putt = m.dist !== play.rollSwing;
+      var c = svgNode('circle', {
+        cx: cx(m.x), cy: cy(m.y), r: U * 0.44,
+        fill: 'rgba(159,214,168,.55)', stroke: '#4f8f5c',
+        'stroke-width': putt ? 1.4 : 2.4,
+        'stroke-dasharray': putt ? '3 3' : 'none',
+        'class': 'target'
+      });
+      c.addEventListener('click', function () { applyMove(m); });
+      o.appendChild(c);
+    });
+  }
+
+  // the ball
+  if (!play.over) {
+    o.appendChild(svgNode('circle', {
+      cx: cx(play.ball.x), cy: cy(play.ball.y), r: U * 0.26,
+      fill: '#f5c452', stroke: '#3f4442', 'stroke-width': 2,
+      'pointer-events': 'none'
+    }));
+  }
+}
+
+function doRoll(isMulligan) {
+  if (!play || play.over || (play.moves && !isMulligan)) return;
+  var hole = curHole();
+  var roll = 1 + Math.floor(Math.random() * 6);
+  var t = hole.cells[play.ball.y * hole.w + play.ball.x];
+  var swing = roll + (t === G.FAIRWAY ? 1 : t === G.SAND ? -1 : 0);
+  var moves = G.movesForRoll(hole, play.ball.x, play.ball.y, roll);
+  el('p-die').textContent = DIE_FACES[roll - 1];
+  if (!moves.length) {
+    play.roll = null;
+    play.moves = null;
+    setMsg('Rolled ' + roll + ' — no legal shot anywhere! Roll again, no charge.');
+  } else {
+    play.roll = roll;
+    play.rollSwing = swing;
+    play.moves = moves;
+    var mod = t === G.FAIRWAY ? ' +1 (fairway) → move ' + swing :
+              t === G.SAND ? ' −1 (sand) → move ' + swing : ' → move ' + swing;
+    setMsg('Rolled <b>' + roll + '</b>' + mod +
+      (swing < 1 ? '. No swing reaches anywhere — putt instead.' : ', or take a putt.'));
+  }
+  redrawOverlay();
+  updateHUD();
+}
+
+function applyMove(m) {
+  if (!play || play.over) return;
+  var hole = curHole();
+  play.strokes++;
+  play.segments.push({ from: [play.ball.x, play.ball.y], land: [m.x, m.y], rest: [m.rx, m.ry] });
+  var slid = m.rx !== m.x || m.ry !== m.y;
+  play.ball = { x: m.rx, y: m.ry };
+  play.roll = null;
+  play.moves = null;
+  el('p-die').textContent = '';
+  if (play.ball.x === hole.hole.x && play.ball.y === hole.hole.y) {
+    holeOut();
+  } else {
+    var t = hole.cells[play.ball.y * hole.w + play.ball.x];
+    setMsg((slid ? 'The slope carries the ball along! ' : '') + terrainNote(t));
+  }
+  redrawOverlay();
+  updateHUD();
+}
+
+function holeOut() {
+  play.over = true;
+  play.scores[play.hi] = play.strokes;
+  setMsg('<b>' + scoreName(play.strokes) + '</b> — in the cup in ' + play.strokes +
+    (play.strokes === 1 ? ' stroke.' : ' strokes.'));
+  var next = el('p-next');
+  next.hidden = false;
+  next.textContent = play.hi < play.course.holes.length - 1 ? 'Next hole ▸' : '🏁 Final results';
+}
+
+function showSummary() {
+  var n = play.course.holes.length;
+  var total = play.scores.reduce(function (a, b) { return a + b; }, 0);
+  var d = total - play.course.par;
+  var vs = d === 0 ? 'even par' : d > 0 ? d + ' over par' : (-d) + ' under par';
+  var head = '', row = '';
+  for (var i = 0; i < n; i++) {
+    head += '<th>' + (i + 1) + '</th>';
+    row += '<td>' + play.scores[i] + '</td>';
+  }
+  el('p-board').innerHTML =
+    '<div class="play-summary">' +
+    '<div class="flag">🏆</div>' +
+    '<h2>' + play.course.name + '</h2>' +
+    '<div class="sub">Round complete</div>' +
+    '<div class="big">' + total + '</div>' +
+    '<div>' + vs + ' (par ' + play.course.par + ')</div>' +
+    '<div style="overflow-x:auto"><table><tr><th>Hole</th>' + head + '</tr>' +
+    '<tr><td>Strokes</td>' + row + '</tr></table></div>' +
+    '<div class="play-actions" style="justify-content:center;margin-top:16px">' +
+    '<button id="p-again" class="primary">⟳ Play again</button>' +
+    '<button id="p-exit">Back to print view</button></div>' +
+    '</div>';
+  el('p-next').hidden = true;
+  setMsg('');
+  el('p-again').addEventListener('click', function () { startPlay(); });
+  el('p-exit').addEventListener('click', exitPlay);
+}
+
+function updateHUD() {
+  var n = play.course.holes.length;
+  el('p-holeinfo').textContent = 'Hole ' + (play.hi + 1) + ' of ' + n + ' · Par 6';
+  el('p-strokes').textContent = play.strokes;
+  var total = play.scores.reduce(function (a, b) { return a + (b || 0); }, 0);
+  el('p-total').textContent = total + (play.over ? 0 : play.strokes);
+  el('p-mull').textContent = play.mulligans;
+  el('p-roll').disabled = play.over || !!play.moves;
+  el('p-mulligan').disabled = play.over || !play.moves || play.mulligans < 1;
+  var strip = el('p-strip');
+  strip.innerHTML = '';
+  for (var i = 0; i < n; i++) {
+    var c = document.createElement('div');
+    c.className = 'cell' +
+      (i === play.hi && !play.over ? ' now' : '') +
+      (play.scores[i] != null ? ' done' : '');
+    c.innerHTML = '<span class="n">' + (i + 1) + '</span><span>' +
+      (play.scores[i] != null ? play.scores[i] : '·') + '</span>';
+    strip.appendChild(c);
+  }
+}
+
+el('play-toggle').addEventListener('click', function () {
+  if (play) exitPlay(); else startPlay();
+});
+el('p-roll').addEventListener('click', function () { doRoll(false); });
+el('p-mulligan').addEventListener('click', function () {
+  if (!play || !play.moves || play.mulligans < 1) return;
+  play.mulligans--;
+  doRoll(true);
+});
+el('p-next').addEventListener('click', function () {
+  if (!play) return;
+  if (play.hi < play.course.holes.length - 1) beginHole(play.hi + 1);
+  else showSummary();
+});
+
+/* ==================================================================== *
  *  Page assembly                                                       *
  * ==================================================================== */
 
@@ -475,6 +910,7 @@ function syncURL() {
   params.set('seed', document.getElementById('seed').value.trim() || 'pocket-golf');
   params.set('theme', document.getElementById('theme').value);
   params.set('holes', document.getElementById('holes').value);
+  if (play) params.set('play', '1');
   history.replaceState(null, '', '?' + params.toString());
 }
 
@@ -499,6 +935,9 @@ function rebuild() {
     }
     sheets.appendChild(sheet);
   }
+
+  // A new course invalidates any round in progress — restart it.
+  if (play) startPlay();
 }
 
 function randomSeed() {
@@ -535,15 +974,15 @@ document.getElementById('paper').addEventListener('change', function (e) {
 document.getElementById('print').addEventListener('click', function () { window.print(); });
 
 // Restore state from the URL so course links are shareable.
-(function () {
-  var params = new URLSearchParams(location.search);
-  document.getElementById('seed').value = params.get('seed') || randomSeed();
-  if (params.get('theme') && G.THEMES[params.get('theme')]) {
-    document.getElementById('theme').value = params.get('theme');
-  }
-  if (params.get('holes') === '9') document.getElementById('holes').value = '9';
-})();
+var bootParams = new URLSearchParams(location.search);
+document.getElementById('seed').value = bootParams.get('seed') || randomSeed();
+if (bootParams.get('theme') && G.THEMES[bootParams.get('theme')]) {
+  document.getElementById('theme').value = bootParams.get('theme');
+}
+if (bootParams.get('holes') === '9') document.getElementById('holes').value = '9';
 rebuild();
+// ?play=1 deep-links straight into a round of the shared course.
+if (bootParams.get('play') === '1') startPlay();
 </script>
 </body>
 </html>

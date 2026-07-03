@@ -84,6 +84,59 @@ console.log('Avg cells/hole —',
   '| classic slopes:', countSlopes(themed.classic).toFixed(1),
   '| highlands slopes:', countSlopes(themed.highlands).toFixed(1));
 
+// Play-mode move logic: from the tee (and along a played-out route),
+// every roll offers at least one legal move, no offered landing sits
+// on water or trees, and rest positions agree with the slope solver.
+const playCourse = golf.generateCourse('play-mode-check', 9);
+playCourse.holes.forEach((h, i) => {
+  for (let roll = 1; roll <= 6; roll++) {
+    const moves = golf.movesForRoll(h, h.tee.x, h.tee.y, roll);
+    assert(moves.length > 0, `play hole ${i + 1} roll ${roll}: no legal moves from tee`);
+    moves.forEach(m => {
+      const t = h.cells[m.y * h.w + m.x];
+      assert(t !== golf.WATER && t !== golf.TREE,
+        `play hole ${i + 1}: offered landing on a hazard at ${m.x},${m.y}`);
+      const rest = golf.resolveSlope(h, m.x, m.y);
+      assert(rest[0] === m.rx && rest[1] === m.ry,
+        `play hole ${i + 1}: rest position disagrees with resolveSlope`);
+    });
+  }
+
+  // Simulate a round with a seeded die, choosing each stroke with the
+  // solver. Two invariants: there is always a legal move, and no legal
+  // move ever strands the ball somewhere the cup can't be reached from.
+  const die = golf.mulberry32(1000 + i);
+  let ball = { x: h.tee.x, y: h.tee.y };
+  let strokes = 0;
+  while ((ball.x !== h.hole.x || ball.y !== h.hole.y) && strokes < 100) {
+    const roll = 1 + Math.floor(die() * 6);
+    const moves = golf.movesForRoll(h, ball.x, ball.y, roll);
+    assert(moves.length > 0,
+      `play hole ${i + 1}: no legal move at ${ball.x},${ball.y} with roll ${roll}`);
+    if (!moves.length) break;
+    let best = null, bestD = Infinity;
+    for (const m of moves) {
+      if (m.rx === h.hole.x && m.ry === h.hole.y) { best = m; break; }
+      const d = golf.solve(Object.assign({}, h, { tee: { x: m.rx, y: m.ry } }));
+      assert(d !== null,
+        `play hole ${i + 1}: landing at ${m.rx},${m.ry} strands the ball`);
+      if (d !== null && d < bestD) { bestD = d; best = m; }
+    }
+    ball = { x: best.rx, y: best.ry };
+    strokes++;
+  }
+  assert(ball.x === h.hole.x && ball.y === h.hole.y,
+    `play hole ${i + 1}: solver-guided round did not finish in 100 strokes`);
+});
+
+// A putt (move 1) is always among the options unless every neighbor
+// is a hazard; on the green a 2-space putt is offered too.
+{
+  const h = playCourse.holes[0];
+  const moves = golf.movesForRoll(h, h.tee.x, h.tee.y, 6);
+  assert(moves.some(m => m.dist === 1), 'putt option missing from tee');
+}
+
 // Determinism: same seed -> identical course
 const a = golf.generateCourse('determinism', 9);
 const b = golf.generateCourse('determinism', 9);

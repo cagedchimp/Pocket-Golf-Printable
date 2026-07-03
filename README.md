@@ -4,7 +4,8 @@ Generate printable dot-grid golf courses in the style of
 [Paper Apps™ GOLF](https://gladdendesign.com/) (created by Tom Brinton).
 Open the app, roll up a fresh 9- or 18-hole course, print it 4-up on
 Letter or A4, cut the sheets into quarters, and hit the links with a
-pencil and a d6.
+pencil and a d6 — or hit **▶ Play** and play the same course right in
+the browser with a virtual die.
 
 ## Use it
 
@@ -37,6 +38,15 @@ dependencies.
 - **Holes** — 9 or 18.
 - **Paper** — Letter (quarters are 4.25 × 5.5 in) or A4 (quarters are
   exactly A6).
+- **▶ Play** — play the course on screen instead of (or before)
+  printing it. Roll the virtual d6, then tap one of the highlighted
+  spots to hit the ball there: solid rings are your full shot
+  (fairway +1, sand −1), dashed rings are putts. Slopes carry the ball
+  after it lands, mulligans re-roll the die, spotting Bigfoot earns a
+  free one, and a scorecard tracks the round. Works great on phones —
+  the roll controls stay pinned to the bottom of the screen. Add
+  `&play=1` to a shared course URL to send someone straight into a
+  round: [play Deep Forest now](https://cagedchimp.github.io/Pocket-Golf-Printable/?seed=demo-course&theme=forest&holes=18&play=1).
 - **🖨 Print** — print with margins set to *none* and background
   graphics *on*. Cut along the dashed guides.
 
@@ -84,9 +94,9 @@ node test/generator.test.js
 
 ## Files
 
-- `index.html` — the whole app: UI, SVG rendering, print layout
-- `golf.js` — pure course generator + rules solver (browser & Node)
-- `test/generator.test.js` — solvability, determinism, and pacing checks
+- `index.html` — the whole app: UI, SVG rendering, print layout, play mode
+- `golf.js` — pure course generator + rules solver + move legality (browser & Node)
+- `test/generator.test.js` — solvability, determinism, pacing, and play-mode checks
 
 *Not affiliated with Paper Apps™ or Gladden Design — go buy their
 notebooks, they're wonderful.*
