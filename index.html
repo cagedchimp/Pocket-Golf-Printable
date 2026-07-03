@@ -297,6 +297,12 @@
   .play-summary .flag { font-size: 40px; }
   .play-summary h2 { margin: 6px 0 2px; }
   .play-summary .big { font-size: 30px; font-weight: 700; margin: 10px 0 2px; }
+  .play-summary .share-block {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--dot);
+  }
+  .play-summary .seed-line { font-size: 12px; opacity: .7; margin: 6px 0 2px; }
   .play-summary table {
     border-collapse: collapse;
     margin: 14px auto 4px;
@@ -869,11 +875,74 @@ function holeOut() {
   next.textContent = play.hi < play.course.holes.length - 1 ? 'Next hole ▸' : '🏁 Final results';
 }
 
-function showSummary() {
-  var n = play.course.holes.length;
+function escapeHTML(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+// Round result as words, e.g. "92 (2 over par)".
+function roundResult() {
   var total = play.scores.reduce(function (a, b) { return a + b; }, 0);
   var d = total - play.course.par;
   var vs = d === 0 ? 'even par' : d > 0 ? d + ' over par' : (-d) + ' under par';
+  return { total: total, vs: vs };
+}
+
+// Link that drops the recipient straight into a round of this course.
+function shareLink() {
+  var params = new URLSearchParams();
+  params.set('seed', play.course.seed);
+  params.set('theme', play.course.theme);
+  params.set('holes', String(play.course.holes.length));
+  params.set('play', '1');
+  return location.origin + location.pathname + '?' + params.toString();
+}
+
+function shareRound() {
+  var r = roundResult();
+  var text = 'I shot ' + r.total + ' (' + r.vs + ') on ' + play.course.name +
+    ' — Pocket Golf, seed "' + play.course.seed + '". Think you can beat it?';
+  var url = shareLink();
+  var btn = el('p-share');
+  function flash(label) {
+    btn.textContent = label;
+    setTimeout(function () { btn.textContent = '📣 Share'; }, 2000);
+  }
+  function copyFallback() {
+    var full = text + '\n' + url;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(full).then(
+        function () { flash('✓ Copied!'); },
+        function () { flash('Copy failed'); });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = full;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+      flash(ok ? '✓ Copied!' : 'Copy failed');
+    }
+  }
+  if (navigator.share) {
+    navigator.share({ title: 'Pocket Golf', text: text, url: url })
+      .catch(function (err) {
+        // AbortError = user closed the share sheet; anything else,
+        // fall back to the clipboard so the tap still does something.
+        if (err && err.name !== 'AbortError') copyFallback();
+      });
+  } else {
+    copyFallback();
+  }
+}
+
+function showSummary() {
+  var n = play.course.holes.length;
+  var r = roundResult();
   var head = '', row = '';
   for (var i = 0; i < n; i++) {
     head += '<th>' + (i + 1) + '</th>';
@@ -884,16 +953,22 @@ function showSummary() {
     '<div class="flag">🏆</div>' +
     '<h2>' + play.course.name + '</h2>' +
     '<div class="sub">Round complete</div>' +
-    '<div class="big">' + total + '</div>' +
-    '<div>' + vs + ' (par ' + play.course.par + ')</div>' +
+    '<div class="big">' + r.total + '</div>' +
+    '<div>' + r.vs + ' (par ' + play.course.par + ')</div>' +
     '<div style="overflow-x:auto"><table><tr><th>Hole</th>' + head + '</tr>' +
     '<tr><td>Strokes</td>' + row + '</tr></table></div>' +
-    '<div class="play-actions" style="justify-content:center;margin-top:16px">' +
-    '<button id="p-again" class="primary">⟳ Play again</button>' +
+    '<div class="share-block">' +
+    '<div class="sub">Challenge a friend</div>' +
+    '<div class="seed-line">seed: <b>' + escapeHTML(play.course.seed) + '</b></div>' +
+    '<div class="play-actions" style="justify-content:center;margin-top:10px">' +
+    '<button id="p-share" class="primary">📣 Share</button>' +
+    '<button id="p-again">⟳ Play again</button>' +
     '<button id="p-exit">Back to print view</button></div>' +
+    '</div>' +
     '</div>';
   el('p-next').hidden = true;
   setMsg('');
+  el('p-share').addEventListener('click', shareRound);
   el('p-again').addEventListener('click', function () { startPlay(); });
   el('p-exit').addEventListener('click', exitPlay);
 }
