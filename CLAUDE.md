@@ -52,8 +52,8 @@ plain HTML/CSS/JS served as static files.
   fixed `@page` size — there is no paper picker: `sheet` (4-up
   quarters on Letter), `single` (one 4.25×5.5in card per page),
   `booklet` (the course map on 6×8 pad pages, 6 holes each), and
-  `continuous` (Letter, 9 holes) — several holes
-  composed onto one shared dot grid by
+  `continuous` (Letter, 9 holes, scorecard on the cover page) —
+  several holes composed onto one shared dot grid by
   `packSheet()`: tight per-hole footprints placed rigidly (translate +
   90°-multiple rotation of self-solved holes, so solvability transfers),
   seeded as an aspect-matched boustrophedon grid, then compacted
