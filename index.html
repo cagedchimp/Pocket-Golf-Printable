@@ -164,6 +164,18 @@
   }
   .booklet-foot .range { opacity: .7; white-space: nowrap; }
 
+  /* continuous sheet: one big grid fills the space above the footer */
+  .sheet.booklet.continuous .cont-board {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+  }
+  .sheet.booklet.continuous .cont-board svg {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+  }
+
   /* ------------------------------ hole card ------------------------ */
   .hole-card svg { flex: 1; width: 100%; height: 0; min-height: 0; }
 
@@ -482,6 +494,7 @@
     <option value="sheet" selected>4-up sheet</option>
     <option value="single">Single cards</option>
     <option value="booklet">Booklet (6×8)</option>
+    <option value="continuous">Continuous (6×8)</option>
   </select>
   <label for="players">Players</label>
   <select id="players">
@@ -806,6 +819,61 @@ function renderHoleSVG(hole) {
   return s + '</svg>';
 }
 
+// One continuous grid holding several holes (see composeSheet). Same
+// terrain/dot/glyph passes as a single hole, then each placed hole's
+// tee, cup, number badge and wind arrow on top.
+function renderCompositeSVG(comp, treeStyle) {
+  var wpx = comp.w * U + PAD * 2;
+  var hpx = comp.h * U + PAD * 2;
+  var s = svgOpen(wpx, hpx, ' preserveAspectRatio="xMidYMid meet"');
+  var pat = terrainPatterns();
+  s += pat.defs;
+
+  s += terrainLayer(comp, G.ROUGH, pat.rough);
+  s += terrainLayer(comp, G.TREE, pat.rough);
+  s += terrainLayer(comp, G.FAIRWAY, 'var(--fairway, #e4e7e5)');
+  s += terrainLayer(comp, G.GREEN, '#c9d2cc');
+  s += terrainLayer(comp, G.SAND, pat.sand);
+  s += terrainLayer(comp, G.WATER, pat.water);
+
+  var gray = '', white = '';
+  for (var y = 0; y < comp.h; y++) {
+    for (var x = 0; x < comp.w; x++) {
+      var t = comp.cells[y * comp.w + x];
+      if (t === G.TREE) continue;
+      if (comp.slope[y * comp.w + x] >= 0) continue;
+      var dot = '<circle cx="' + cx(x) + '" cy="' + cy(y) + '" r="1.7"/>';
+      if (t === G.WATER) white += dot; else gray += dot;
+    }
+  }
+  s += '<g fill="#a9aeac">' + gray + '</g><g fill="#ffffff">' + white + '</g>';
+
+  for (y = 0; y < comp.h; y++) {
+    for (x = 0; x < comp.w; x++) {
+      var k = y * comp.w + x;
+      if (comp.cells[k] === G.TREE) s += treeGlyph(x, y, treeStyle);
+      else if (comp.slope[k] >= 0) s += slopeGlyph(x, y, comp.slope[k]);
+    }
+  }
+
+  comp.placements.forEach(function (p) {
+    if (p.wonder) s += WONDER_GLYPHS[p.wonder.key](p.wonder.x, p.wonder.y);
+    s += flagGlyph(p.cup.x, p.cup.y);
+    // tee as a numbered badge so each hole is identifiable on the sheet
+    var tx = cx(p.tee.x), ty = cy(p.tee.y);
+    s += '<circle cx="' + tx + '" cy="' + ty + '" r="' + (U * 0.42) + '" fill="#3f4442"/>' +
+      '<text x="' + tx + '" y="' + (ty + U * 0.26) + '" text-anchor="middle" font-size="' +
+      (U * 0.72) + '" font-weight="700" fill="#ffffff">' + p.num + '</text>';
+    if (p.wind >= 0) {
+      s += '<text x="' + (tx + U * 0.6) + '" y="' + (ty - U * 0.55) +
+        '" font-size="' + (U * 0.7) + '" fill="#3f4442">' +
+        new Array((p.windStr || 1) + 1).join(WIND_ARROWS[p.wind]) + '</text>';
+    }
+  });
+
+  return s + '</svg>';
+}
+
 /* ==================================================================== *
  *  Quarter-page cards                                                  *
  * ==================================================================== */
@@ -1014,6 +1082,32 @@ function buildBooklet(sheets, course, players) {
     for (var j = i; j < last; j++) grid.appendChild(holeMini(course.holes[j], j + 1));
     sheet.appendChild(grid);
     sheet.appendChild(bookletFooter(course, players, i + 1, last));
+    sheets.appendChild(sheet);
+  }
+  sheets.appendChild(solo(scoreCard(course, players)));
+}
+
+// Continuous 6×8 sheets: four holes to a shared dot grid (2×2), the
+// way the printed pad lays them out, with the two-player footer.
+function buildContinuous(sheets, course, players) {
+  var PER = 4;
+  function solo(quarter) {
+    var sheet = document.createElement('div');
+    sheet.className = 'sheet booklet solo';
+    sheet.appendChild(quarter);
+    return sheet;
+  }
+  sheets.appendChild(solo(titleCard(course)));
+  for (var i = 0; i < course.holes.length; i += PER) {
+    var group = course.holes.slice(i, i + PER);
+    var comp = G.composeSheet(group, 2, 2, 1);
+    var sheet = document.createElement('div');
+    sheet.className = 'sheet booklet continuous';
+    var board = document.createElement('div');
+    board.className = 'cont-board';
+    board.innerHTML = renderCompositeSVG(comp, course.treeStyle);
+    sheet.appendChild(board);
+    sheet.appendChild(bookletFooter(course, players, i + 1, Math.min(i + PER, course.holes.length)));
     sheets.appendChild(sheet);
   }
   sheets.appendChild(solo(scoreCard(course, players)));
@@ -1491,6 +1585,8 @@ function rebuild() {
 
   if (layout === 'booklet') {
     buildBooklet(sheets, course, players);
+  } else if (layout === 'continuous') {
+    buildContinuous(sheets, course, players);
   } else {
     var quarters = [titleCard(course)];
     course.holes.forEach(function (h, i) { quarters.push(holeCard(h, i + 1, players)); });
@@ -1560,7 +1656,7 @@ function updatePageSize() {
   var layout = document.getElementById('layout').value;
   document.body.classList.toggle('a4', a4);
   var size;
-  if (layout === 'booklet') size = '6in 8in';           // fixed pad size
+  if (layout === 'booklet' || layout === 'continuous') size = '6in 8in'; // fixed pad size
   else if (layout === 'single') size = a4 ? '105mm 148mm' : '4.25in 5.5in';
   else size = a4 ? 'A4' : 'letter';
   document.getElementById('page-size').textContent =
@@ -1585,7 +1681,7 @@ if (bootParams.get('diff') && G.DIFFICULTIES[bootParams.get('diff')]) {
 }
 if (bootParams.get('holes') === '9') document.getElementById('holes').value = '9';
 var bootLayout = bootParams.get('layout');
-if (bootLayout === 'single' || bootLayout === 'booklet') {
+if (bootLayout === 'single' || bootLayout === 'booklet' || bootLayout === 'continuous') {
   document.getElementById('layout').value = bootLayout;
   updatePageSize();
 }

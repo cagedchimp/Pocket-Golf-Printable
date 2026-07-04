@@ -300,6 +300,54 @@ playCourse.holes.forEach((h, i) => {
   }
 });
 
+// Sheet composition: holes blitted onto one shared grid must keep
+// their exact terrain (so each stays solvable to its original best),
+// must land inside the grid, and must never put two holes' playable
+// (non-rough) cells adjacent — a rough gutter separates every region.
+{
+  const course = golf.generateCourse('compose-check', 18, 'lakeside', 'tough');
+  const sheet = golf.composeSheet(course.holes.slice(0, 4), 2, 2, 1);
+  assert(sheet.placements.length === 4, 'expected 4 placements');
+  const PLAY = new Set([golf.FAIRWAY, golf.SAND, golf.WATER, golf.TREE, golf.GREEN]);
+  sheet.placements.forEach(pl => {
+    const src = pl.hole;
+    // extract the region back out and confirm it is byte-identical
+    let match = true;
+    for (let y = 0; y < golf.H; y++) {
+      for (let x = 0; x < golf.W; x++) {
+        const gk = (pl.oy + y) * sheet.w + (pl.ox + x);
+        if (sheet.cells[gk] !== src.cells[y * golf.W + x]) match = false;
+        if (sheet.slope[gk] !== src.slope[y * golf.W + x]) match = false;
+      }
+    }
+    assert(match, `hole ${pl.num}: composed region differs from source`);
+    assert(sheet.cells[pl.tee.y * sheet.w + pl.tee.x] === golf.FAIRWAY, `hole ${pl.num}: tee misplaced`);
+    assert(sheet.cells[pl.cup.y * sheet.w + pl.cup.x] === golf.GREEN, `hole ${pl.num}: cup misplaced`);
+    assert(pl.tee.x >= 0 && pl.tee.x < sheet.w && pl.cup.y >= 0 && pl.cup.y < sheet.h,
+      `hole ${pl.num}: endpoints out of grid`);
+  });
+  // no playable cell borders a *different* hole's playable cell
+  function ownerAt(gx, gy) {
+    for (const pl of sheet.placements) {
+      if (gx >= pl.ox && gx < pl.ox + golf.W && gy >= pl.oy && gy < pl.oy + golf.H) return pl.num;
+    }
+    return 0; // gutter
+  }
+  let leaks = 0;
+  for (let gy = 0; gy < sheet.h; gy++) {
+    for (let gx = 0; gx < sheet.w; gx++) {
+      if (!PLAY.has(sheet.cells[gy * sheet.w + gx])) continue;
+      const me = ownerAt(gx, gy);
+      [[1,0],[0,1]].forEach(([dx,dy]) => {
+        const nx = gx+dx, ny = gy+dy;
+        if (nx >= sheet.w || ny >= sheet.h) return;
+        if (PLAY.has(sheet.cells[ny*sheet.w+nx]) && ownerAt(nx,ny) !== me) leaks++;
+      });
+    }
+  }
+  assert(leaks === 0, `composed sheet has ${leaks} cross-hole playable adjacencies`);
+}
+
 // Determinism: same seed -> identical course
 const a = golf.generateCourse('determinism', 9);
 const b = golf.generateCourse('determinism', 9);

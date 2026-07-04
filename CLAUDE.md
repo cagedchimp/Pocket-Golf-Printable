@@ -46,8 +46,12 @@ plain HTML/CSS/JS served as static files.
 - **Print layout**: the printable sheets must stay intact — play mode
   hides them on screen but `@media print` shows them again, so a user
   can print while playing. Three layouts (`layout` param): `sheet`
-  (4-up), `single` (one card per page), `booklet` (6×8, several holes
-  per page + two-player footer); each sets its own `@page` size. The
+  (4-up), `single` (one card per page), `booklet` (6×8 grid of cards),
+  `continuous` (6×8, four holes composed onto one shared grid via
+  `composeSheet` — translate-only placement, so each hole's cells are
+  copied verbatim and stay solvable); each sets its own `@page` size.
+  Holes now flow vertically or diagonally (tee/cup placement in
+  `buildHoleAttempt`), not just top-to-bottom. The
   `players` param (1/2) adds P1/P2 to the scorecard and booklet footer
   — printed sheets only, on-screen play stays single-player.
 - **Mobile**: play mode is touch-first — keep tap targets generous and
