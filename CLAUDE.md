@@ -50,7 +50,7 @@ plain HTML/CSS/JS served as static files.
   hides them on screen but `@media print` shows them again, so a user
   can print while playing. Four layouts (`layout` param), each setting
   its own `@page` size: `sheet` (4-up quarters), `single` (one card per
-  page), `booklet` (6×8 grid of cards), and `continuous` — several holes
+  page), `booklet` (the course map on fixed 6×8 pad pages), and `continuous` — several holes
   (6 on a 6×8 pad, 9 on Letter/A4) composed onto one shared dot grid by
   `packSheet()`: tight per-hole footprints placed rigidly (translate +
   90°-multiple rotation of self-solved holes, so solvability transfers),

@@ -133,22 +133,6 @@
   .sheet.booklet.solo { display: block; }
   .sheet.booklet.solo .quarter { width: 100%; height: 100%; padding: 0.4in 0.5in; }
 
-  .booklet .holes-grid {
-    flex: 1;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: repeat(3, 1fr);
-    gap: 0.12in 0.22in;
-    min-height: 0;
-  }
-  .hole-mini { position: relative; display: flex; flex-direction: column; min-height: 0; }
-  .hole-mini svg { flex: 1; width: 100%; height: 0; min-height: 0; }
-  .hole-mini .tag {
-    display: flex; justify-content: space-between; align-items: baseline;
-    font-size: 10px; font-weight: 700; letter-spacing: .02em; padding: 1px 2px 0;
-  }
-  .hole-mini .tag .wind { opacity: .6; font-weight: 600; }
-
   .booklet-foot {
     display: flex; align-items: center; gap: 10px;
     border-top: 1.5px solid var(--ink);
@@ -494,7 +478,7 @@
   <select id="layout">
     <option value="sheet" selected>4-up cards</option>
     <option value="single">Single cards</option>
-    <option value="booklet">Card booklet (6×8)</option>
+    <option value="booklet">Pad booklet (6×8)</option>
     <option value="continuous">Course map</option>
   </select>
   <label for="players">Players</label>
@@ -1074,16 +1058,6 @@ function scoreCard(course, players) {
 
 // A compact hole for the booklet layout: dot-grid map with a small
 // number + wind tag, no score blanks (scores go on the scorecard).
-function holeMini(hole, num) {
-  var div = document.createElement('div');
-  div.className = 'hole-mini';
-  var wind = hole.wind >= 0 ? '<span class="wind">' + windLabel(hole) + '</span>' : '';
-  div.innerHTML =
-    '<div class="tag"><span>Hole ' + num + '</span>' + wind + '</div>' +
-    renderHoleSVG(hole);
-  return div;
-}
-
 // The footer strip along the bottom of each booklet hole-page: course
 // name, a mulligan pip track per player, and the page's hole range —
 // mirroring the printed Paper Apps GOLF pad.
@@ -1105,32 +1079,7 @@ function bookletFooter(course, players, fromHole, toHole) {
   return foot;
 }
 
-// Assemble booklet pages: a title cover, hole-pages of up to 6 holes
-// (2×3) each with the two-player footer, then a scorecard page.
-function buildBooklet(sheets, course, players) {
-  var PER = 6;
-  function solo(quarter) {
-    var sheet = document.createElement('div');
-    sheet.className = 'sheet booklet solo';
-    sheet.appendChild(quarter);
-    return sheet;
-  }
-  sheets.appendChild(solo(titleCard(course)));
-  for (var i = 0; i < course.holes.length; i += PER) {
-    var sheet = document.createElement('div');
-    sheet.className = 'sheet booklet';
-    var grid = document.createElement('div');
-    grid.className = 'holes-grid';
-    var last = Math.min(i + PER, course.holes.length);
-    for (var j = i; j < last; j++) grid.appendChild(holeMini(course.holes[j], j + 1));
-    sheet.appendChild(grid);
-    sheet.appendChild(bookletFooter(course, players, i + 1, last));
-    sheets.appendChild(sheet);
-  }
-  sheets.appendChild(solo(scoreCard(course, players)));
-}
-
-// Page dimensions + aspect for the continuous layout by paper choice:
+// Page dimensions + aspect for the course-map layouts by paper choice:
 // 6×8 pad fits six holes to a page, the bigger Letter/A4 sheets nine.
 function paperDims(paper) {
   if (paper === 'a4') return { w: '210mm', h: '297mm', aspect: 210 / 297, per: 9 };
@@ -1138,12 +1087,19 @@ function paperDims(paper) {
   return { w: '8.5in', h: '11in', aspect: 8.5 / 11, per: 9 }; // letter
 }
 
-// Continuous sheets: several holes packed onto one shared dot grid at
-// varied angles with rough flowing between them, the way the printed pad
-// lays them out, plus the two-player footer. Page size and holes-per-
-// sheet follow the Paper choice.
-function buildContinuous(sheets, course, players) {
-  var dims = paperDims(document.getElementById('paper').value);
+// The pad booklet is the same organic course map, always on fixed 6×8
+// pad pages regardless of the Paper selection — the print-and-staple
+// pocket format.
+function buildBooklet(sheets, course, players) {
+  buildContinuous(sheets, course, players, paperDims('6x8'));
+}
+
+// Course-map sheets: the holes interlaced onto one shared dot grid with
+// rough, seam tree lines and a water feature flowing between them, plus
+// the two-player footer. Page size and holes-per-sheet follow the Paper
+// choice unless fixed dims are passed (see buildBooklet).
+function buildContinuous(sheets, course, players, dimsOverride) {
+  var dims = dimsOverride || paperDims(document.getElementById('paper').value);
   var PER = dims.per;
   function solo(quarter) {
     var sheet = document.createElement('div');

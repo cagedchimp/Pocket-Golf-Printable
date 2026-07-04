@@ -43,9 +43,9 @@ dependencies.
   [Lakeside on Tough](https://cagedchimp.github.io/Pocket-Golf-Printable/?seed=demo-course&theme=lakeside&diff=tough&holes=18).
 - **Holes** — 9 or 18.
 - **Layout** — *4-up cards* (four cards per Letter/A4 page), *Single
-  cards* (one pocket-size card per page, for PDF export), *Card
-  booklet (6×8)* — a grid of hole cards on fixed 6×8 pages with a
-  two-player footer — or *Course map*: the holes interlaced onto one
+  cards* (one pocket-size card per page, for PDF export), *Pad
+  booklet (6×8)* — the course map on fixed 6×8 pad pages, the
+  print-and-staple pocket format — or *Course map*: the holes interlaced onto one
   shared dot grid like a real course map, fairways side by side with
   tree-line seams, an organic lake or river woven in, and each green
   ending near the next tee.
@@ -93,9 +93,9 @@ a green around the cup — guarded by bunkers, tree lines along the
 fairway, copses in dogleg elbows, and the occasional creek crossing the
 line of play.
 
-You may always putt (move 1) instead of your roll. 6 mulligans
-(re-rolls) per course — tick them off on the title page. Rumor has it
-Windy holes (arrows by the hole number — one space of drift per
+You may always putt (move 1) instead of your roll. Mulligans
+(re-rolls) come from the difficulty tier — tick them off on the title
+page. Windy holes (arrows by the hole number — one space of drift per
 arrow) push shots of 4+ spaces downwind after they land, so aim
 upwind or loft a wedge. Rumor has it
 a *wonder* hides on one hole in about a third of courses — usually
