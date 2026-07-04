@@ -382,25 +382,40 @@ playCourse.holes.forEach((h, i) => {
     }
   }
   assert(leaks === 0, `packed sheet has ${leaks} cross-hole playable adjacencies`);
-  // 6 holes at a 6×8-ish target pack as landscape (2×3) and roughly
-  // match the page aspect, not a narrow strip (the fill fix).
-  s.placements.forEach(p => assert(p.rot === 1 || p.rot === 3, `hole ${p.num}: expected landscape, got rot ${p.rot}`));
-  assert(s.w / s.h > 0.7 && s.w / s.h < 1.1, `6-hole grid aspect off: ${(s.w/s.h).toFixed(2)}`);
-  // 9 holes at a Letter-ish target pack as upright holes in a 3×3 grid.
+  // ring layout: 5+ holes circle a central commons block where the big
+  // landscape feature lives. Grid aspect stays page-like, the commons is
+  // a real block (not a sliver), and the ring closes — every cup ends
+  // near the next tee, including last cup back around to hole 1's tee.
   const s9 = golf.packSheet(course.holes.slice(0, 9), { aspect: 8.5 / 11 });
   assert(s9.placements.length === 9, 'expected 9 placements');
-  s9.placements.forEach(p => assert(p.rot === 0 || p.rot === 2, `9-hole ${p.num}: expected portrait, got rot ${p.rot}`));
-  assert(s9.w / s9.h > 0.6 && s9.w / s9.h < 0.95, `9-hole grid aspect off: ${(s9.w/s9.h).toFixed(2)}`);
-  // routing: consecutive holes' cup→next-tee stays short except the
-  // grid line-change (row drop or column turn), one per grid line.
-  [s, s9].forEach(sheet => {
-    let longHops = 0;
+  [[s, 12, 16], [s9, 26, 34]].forEach(([sheet, minCW, minCH]) => {
+    assert(sheet.w / sheet.h > 0.7 && sheet.w / sheet.h < 1.0,
+      `grid aspect off: ${(sheet.w/sheet.h).toFixed(2)}`);
+    assert(sheet.commons, 'ring layout should reserve a commons');
+    const cw = sheet.commons.x1 - sheet.commons.x0 + 1;
+    const ch = sheet.commons.y1 - sheet.commons.y0 + 1;
+    assert(cw >= minCW - 4 && ch >= minCH - 4, `commons too small: ${cw}x${ch}`);
     for (let i = 0; i + 1 < sheet.placements.length; i++) {
       const a = sheet.placements[i].cup, b = sheet.placements[i + 1].tee;
-      if (Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) > 12) longHops++;
+      const d = Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+      assert(d <= 24, `hop ${i} too long: ${d}`);
     }
-    assert(longHops <= 3, `too many long routing hops: ${longHops}`);
+    const last = sheet.placements[sheet.placements.length - 1].cup;
+    const first = sheet.placements[0].tee;
+    assert(Math.max(Math.abs(last.x - first.x), Math.abs(last.y - first.y)) <= 32,
+      'ring does not close back near hole 1');
   });
+  // commons-anchored lakes are big: force a lake and count its cells
+  {
+    const sl = golf.packSheet(course.holes.slice(0, 6), { aspect: 6 / 8 });
+    const before = sl.cells.slice();
+    golf.decorateSheet(sl, { rng: golf.mulberry32(7), themeKey: 'dunes', chance: 1, kind: 'lake' });
+    let painted = 0;
+    for (let k = 0; k < sl.cells.length; k++) {
+      if (sl.cells[k] === golf.WATER && before[k] === golf.ROUGH) painted++;
+    }
+    assert(painted >= 150, `commons lake too small: ${painted} cells`);
+  }
 }
 
 // decorateSheet: a sheet-spanning water feature must only flood rough,
