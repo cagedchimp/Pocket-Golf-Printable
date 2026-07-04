@@ -488,6 +488,7 @@
   <select id="paper">
     <option value="letter" selected>Letter</option>
     <option value="a4">A4</option>
+    <option value="6x8">6×8 pad</option>
   </select>
   <label for="layout">Layout</label>
   <select id="layout">
@@ -1087,27 +1088,41 @@ function buildBooklet(sheets, course, players) {
   sheets.appendChild(solo(scoreCard(course, players)));
 }
 
-// Continuous 6×8 sheets: several holes packed onto one shared dot grid
-// at varied angles with rough flowing between them, the way the printed
-// pad lays them out, plus the two-player footer.
+// Page dimensions + aspect for the continuous layout by paper choice:
+// 6×8 pad fits six holes to a page, the bigger Letter/A4 sheets nine.
+function paperDims(paper) {
+  if (paper === 'a4') return { w: '210mm', h: '297mm', aspect: 210 / 297, per: 9 };
+  if (paper === '6x8') return { w: '6in', h: '8in', aspect: 6 / 8, per: 6 };
+  return { w: '8.5in', h: '11in', aspect: 8.5 / 11, per: 9 }; // letter
+}
+
+// Continuous sheets: several holes packed onto one shared dot grid at
+// varied angles with rough flowing between them, the way the printed pad
+// lays them out, plus the two-player footer. Page size and holes-per-
+// sheet follow the Paper choice.
 function buildContinuous(sheets, course, players) {
-  var PER = 6;
+  var dims = paperDims(document.getElementById('paper').value);
+  var PER = dims.per;
   function solo(quarter) {
     var sheet = document.createElement('div');
     sheet.className = 'sheet booklet solo';
+    sheet.style.width = dims.w;
+    sheet.style.height = dims.h;
     sheet.appendChild(quarter);
     return sheet;
   }
   sheets.appendChild(solo(titleCard(course)));
   for (var i = 0; i < course.holes.length; i += PER) {
     var group = course.holes.slice(i, i + PER);
-    var comp = G.packSheet(group);
+    var comp = G.packSheet(group, { aspect: dims.aspect });
     // A large water feature spanning the sheet, seeded per sheet so it's
     // reproducible; only floods rough and keeps every hole solvable.
     var decoRng = G.mulberry32(G.xmur3(course.seed + '|' + course.theme + '|deco|' + i)());
     G.decorateSheet(comp, { rng: decoRng, themeKey: course.theme });
     var sheet = document.createElement('div');
     sheet.className = 'sheet booklet continuous';
+    sheet.style.width = dims.w;
+    sheet.style.height = dims.h;
     var board = document.createElement('div');
     board.className = 'cont-board';
     board.innerHTML = renderCompositeSVG(comp, course.treeStyle);
@@ -1657,17 +1672,25 @@ document.getElementById('theme').addEventListener('change', rebuild);
 document.getElementById('diff').addEventListener('change', rebuild);
 document.getElementById('holes').addEventListener('change', rebuild);
 function updatePageSize() {
-  var a4 = document.getElementById('paper').value === 'a4';
+  var paper = document.getElementById('paper').value;
+  var a4 = paper === 'a4';
   var layout = document.getElementById('layout').value;
   document.body.classList.toggle('a4', a4);
   var size;
-  if (layout === 'booklet' || layout === 'continuous') size = '6in 8in'; // fixed pad size
-  else if (layout === 'single') size = a4 ? '105mm 148mm' : '4.25in 5.5in';
-  else size = a4 ? 'A4' : 'letter';
+  if (layout === 'booklet') size = '6in 8in';           // fixed pad size
+  else if (layout === 'continuous') {
+    var d = paperDims(paper);
+    size = d.w + ' ' + d.h;
+  } else if (layout === 'single') size = a4 ? '105mm 148mm' : '4.25in 5.5in';
+  else size = a4 ? 'A4' : 'letter';                     // 6×8 falls back to letter here
   document.getElementById('page-size').textContent =
     '@page { size: ' + size + '; margin: 0; }';
 }
-document.getElementById('paper').addEventListener('change', updatePageSize);
+document.getElementById('paper').addEventListener('change', function () {
+  updatePageSize();
+  // Continuous packs a paper-dependent number of holes, so re-lay it out.
+  if (document.getElementById('layout').value === 'continuous') rebuild();
+});
 document.getElementById('layout').addEventListener('change', function () {
   updatePageSize();
   rebuild();

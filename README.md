@@ -50,8 +50,9 @@ dependencies.
   ends near the next tee), closest to the printed Paper Apps GOLF pad.
 - **Players** — 1 or 2. Two players adds P1/P2 stroke columns to the
   scorecard and a mulligan track per player on the booklet footer.
-- **Paper** — Letter (quarters are 4.25 × 5.5 in) or A4 (quarters are
-  exactly A6).
+- **Paper** — Letter, A4, or a 6×8 pad. In the Continuous layout the
+  paper size sets the holes per sheet: nine on Letter/A4, six on a 6×8
+  pad.
 - **▶ Play** — play the course on screen instead of (or before)
   printing it. Roll the virtual d6, then tap one of the highlighted
   spots to hit the ball there: solid rings are your full shot
