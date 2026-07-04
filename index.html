@@ -1233,6 +1233,7 @@ function renderBoard() {
   // Safari doesn't reliably fire click events on dynamically inserted
   // SVG children, and per-circle hit areas are small on phones anyway.
   play.svg.addEventListener('click', boardTap);
+  if (window.fitActionsCard) window.fitActionsCard(); // keep board above the pinned card
   redrawOverlay();
 }
 
@@ -1273,11 +1274,17 @@ function boardTap(evt) {
   }
 
   var hole = curHole();
-  if (hole.wonder && !play.wonderFound && distTo(hole.wonder.x, hole.wonder.y) <= 0.8) {
-    play.wonderFound = hole.wonder.key;
-    play.mulligans++;
-    setMsg('<b>' + WONDER_TEXT[hole.wonder.key].found + '</b> Free mulligan earned.');
-    updateHUD();
+  // Generous tap zone: on phones a grid cell is ~22px, so anything
+  // tighter than ~1.5 cells is smaller than a fingertip.
+  if (hole.wonder && distTo(hole.wonder.x, hole.wonder.y) <= 1.6) {
+    if (!play.wonderFound) {
+      play.wonderFound = hole.wonder.key;
+      play.mulligans++;
+      setMsg('<b>' + WONDER_TEXT[hole.wonder.key].found + '</b> Free mulligan earned.');
+      updateHUD();
+    } else {
+      setMsg('Already found — one freebie per course!');
+    }
   }
 }
 
@@ -1543,10 +1550,27 @@ el('play-toggle').addEventListener('click', function () {
   var mq = window.matchMedia('(max-width: 640px)');
   function fitActionsCard() {
     var playEl = document.getElementById('play');
-    if (!mq.matches) { playEl.style.paddingBottom = ''; return; }
+    var svg = document.querySelector('#p-board svg');
+    if (!mq.matches) {
+      playEl.style.paddingBottom = '';
+      if (svg) svg.style.maxHeight = '';
+      return;
+    }
     var card = document.querySelector('.play-card.actions');
     playEl.style.paddingBottom = (card.offsetHeight + 28) + 'px';
+    // The actions card is pinned OVER the page bottom, so any part of
+    // the board underneath it silently swallows taps (wonders and move
+    // targets alike). Cap the board's height so the whole hole sits
+    // above the pinned card at default scroll.
+    if (svg) {
+      var controls = document.querySelector('.controls');
+      var head = document.querySelector('.board-head');
+      var avail = window.innerHeight - (controls ? controls.offsetHeight : 0) -
+        (head ? head.offsetHeight : 0) - card.offsetHeight - 64;
+      svg.style.maxHeight = Math.max(280, avail) + 'px';
+    }
   }
+  window.fitActionsCard = fitActionsCard; // renderBoard re-applies per hole
   if (window.ResizeObserver) {
     new ResizeObserver(fitActionsCard).observe(document.querySelector('.play-card.actions'));
   }
