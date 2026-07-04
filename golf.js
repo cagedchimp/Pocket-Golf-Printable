@@ -933,44 +933,104 @@
     var maxFW = 0, maxFH = 0;
     items.forEach(function (it) { maxFW = Math.max(maxFW, it.fw); maxFH = Math.max(maxFH, it.fh); });
 
-    // Pick orientation + columns whose grid aspect is closest to the page.
-    var best = null;
-    [false, true].forEach(function (land) {
-      var cw = (land ? maxFH : maxFW) + 2 * margin;
-      var ch = (land ? maxFW : maxFH) + 2 * margin;
-      for (var c = 1; c <= n; c++) {
-        var r = Math.ceil(n / c);
-        var err = Math.abs((c * cw) / (r * ch) - target);
-        if (!best || err < best.err) best = { land: land, cols: c, rows: r, cw: cw, ch: ch, err: err };
-      }
-    });
-    var land = best.land, cols = best.cols, rows = best.rows, cellW = best.cw, cellH = best.ch;
+    // Cell dims: landscape cells lie sideways, portrait cells upright.
+    var LW = maxFH + 2 * margin, LH = maxFW + 2 * margin;
+    var PW = maxFW + 2 * margin, PH = maxFH + 2 * margin;
 
-    // Place each hole in grid order with green-to-next-tee routing:
-    // landscape → row boustrophedon (L→R then R→L); portrait → column
-    // serpentine (down then up). Centre each hole in its cell.
     var placed = new Array(n);
-    for (var k = 0; k < n; k++) {
-      var it = items[k], rot, col, row;
-      if (land) {
-        row = Math.floor(k / cols);
-        var inRow = k % cols, l2r = (row % 2 === 0);
-        col = l2r ? inRow : (cols - 1 - inRow);
-        rot = horizRot(it.hole, l2r);
-      } else {
-        col = Math.floor(k / rows);
-        var inCol = k % rows, down = (col % 2 === 0);
-        row = down ? inCol : (rows - 1 - inCol);
-        rot = vertRot(it.hole, down);
+    var gw, gh, commons = null;
+
+    if (n >= 5) {
+      // Ring layout: holes circle a central commons block where a big
+      // landscape feature (lake, wide river) lives. Landscape holes walk
+      // the top row L→R, portrait holes descend the right side, landscape
+      // holes walk the bottom row R→L, portrait holes climb back up the
+      // left — a closed loop where every cup ends beside the next tee.
+      var topN = Math.round(n / 3), bottomN = topN;
+      var sideN = n - topN - bottomN;
+      var rightN = Math.ceil(sideN / 2), leftN = sideN - rightN;
+      var midRows = Math.max(rightN, leftN, 1);
+      var midH = midRows * PH;
+      gw = Math.max(Math.max(topN, bottomN) * LW,
+                    PW * ((leftN ? 1 : 0) + (rightN ? 1 : 0)) + 14);
+      gh = LH + midH + LH;
+
+      function spread(j, count, span, size) {
+        if (count <= 1) return Math.floor((span - size) / 2);
+        return Math.round(j * (span - size) / (count - 1));
       }
-      var hw = (rot % 2 ? it.fh : it.fw), hh = (rot % 2 ? it.fw : it.fh);
-      placed[k] = {
-        it: it, rot: rot,
-        ox: col * cellW + Math.floor((cellW - hw) / 2),
-        oy: row * cellH + Math.floor((cellH - hh) / 2)
+      var k = 0, j;
+      for (j = 0; j < topN; j++, k++) {           // top row, L→R
+        var itT = items[k];
+        placed[k] = {
+          it: itT, rot: horizRot(itT.hole, true),
+          ox: spread(j, topN, gw, itT.fh),
+          oy: Math.floor((LH - itT.fw) / 2)
+        };
+      }
+      for (j = 0; j < rightN; j++, k++) {         // right side, downward
+        var itR = items[k];
+        placed[k] = {
+          it: itR, rot: vertRot(itR.hole, true),
+          ox: gw - PW + Math.floor((PW - itR.fw) / 2),
+          oy: LH + spread(j, rightN, midH, itR.fh)
+        };
+      }
+      for (j = 0; j < bottomN; j++, k++) {        // bottom row, R→L
+        var itB = items[k];
+        placed[k] = {
+          it: itB, rot: horizRot(itB.hole, false),
+          ox: gw - itB.fh - spread(j, bottomN, gw, itB.fh),
+          oy: LH + midH + Math.floor((LH - itB.fw) / 2)
+        };
+      }
+      for (j = 0; j < leftN; j++, k++) {          // left side, upward
+        var itL = items[k];
+        placed[k] = {
+          it: itL, rot: vertRot(itL.hole, false),
+          ox: Math.floor((PW - itL.fw) / 2),
+          oy: LH + (midH - itL.fh) - spread(j, leftN, midH, itL.fh)
+        };
+      }
+      commons = {
+        x0: (leftN ? PW : 0) + 1, x1: gw - (rightN ? PW : 0) - 2,
+        y0: LH + 1, y1: LH + midH - 2
       };
+    } else {
+      // Few holes: simple grid, orientation chosen to match the page.
+      var best = null;
+      [false, true].forEach(function (land) {
+        var cw = land ? LW : PW, ch = land ? LH : PH;
+        for (var c = 1; c <= n; c++) {
+          var r = Math.ceil(n / c);
+          var err = Math.abs((c * cw) / (r * ch) - target);
+          if (!best || err < best.err) best = { land: land, cols: c, rows: r, cw: cw, ch: ch, err: err };
+        }
+      });
+      var cols = best.cols, rows = best.rows, cellW = best.cw, cellH = best.ch;
+      for (var k2 = 0; k2 < n; k2++) {
+        var it = items[k2], rot, col, row;
+        if (best.land) {
+          row = Math.floor(k2 / cols);
+          var inRow = k2 % cols, l2r = (row % 2 === 0);
+          col = l2r ? inRow : (cols - 1 - inRow);
+          rot = horizRot(it.hole, l2r);
+        } else {
+          col = Math.floor(k2 / rows);
+          var inCol = k2 % rows, down = (col % 2 === 0);
+          row = down ? inCol : (rows - 1 - inCol);
+          rot = vertRot(it.hole, down);
+        }
+        var hw = (rot % 2 ? it.fh : it.fw), hh = (rot % 2 ? it.fw : it.fh);
+        placed[k2] = {
+          it: it, rot: rot,
+          ox: col * cellW + Math.floor((cellW - hw) / 2),
+          oy: row * cellH + Math.floor((cellH - hh) / 2)
+        };
+      }
+      gw = cols * cellW;
+      gh = rows * cellH;
     }
-    var gw = cols * cellW, gh = rows * cellH;
 
     var cells = new Array(gw * gh).fill(ROUGH);
     var slope = new Array(gw * gh).fill(-1);
@@ -1008,17 +1068,30 @@
     }
     return {
       w: gw, h: gh, cells: cells, slope: slope, owner: owner,
-      region: region, regionLoc: regionLoc, placements: placements
+      region: region, regionLoc: regionLoc, placements: placements,
+      commons: commons
     };
   }
 
-  // A wavy 1-cell water path spanning the sheet edge-to-edge (thin, so
-  // it can always be carried), or a big elliptical lake blob.
+  // Cells of one large landscape feature. With a ring-layout commons the
+  // features go big: the lake swells to fill the whole central block
+  // (spilling a little beyond), and the river runs 2-3 cells wide
+  // straight through the commons centre. Without a commons they fall
+  // back to the old free-roaming sizes.
   function featureCells(comp, rng, kind) {
     var gw = comp.w, gh = comp.h, out = [];
+    var com = comp.commons;
     if (kind === 'lake') {
-      var lcx = 3 + ri(rng, gw - 6), lcy = 3 + ri(rng, gh - 6);
-      var rx = 4 + ri(rng, 4), ry = 4 + ri(rng, 4);
+      var lcx, lcy, rx, ry;
+      if (com) {
+        lcx = Math.round((com.x0 + com.x1) / 2) + ri(rng, 3) - 1;
+        lcy = Math.round((com.y0 + com.y1) / 2) + ri(rng, 3) - 1;
+        rx = Math.round((com.x1 - com.x0) / 2) + 2 + ri(rng, 3);
+        ry = Math.round((com.y1 - com.y0) / 2) + 2 + ri(rng, 3);
+      } else {
+        lcx = 3 + ri(rng, gw - 6); lcy = 3 + ri(rng, gh - 6);
+        rx = 4 + ri(rng, 4); ry = 4 + ri(rng, 4);
+      }
       for (var y = Math.max(0, lcy - ry); y <= Math.min(gh - 1, lcy + ry); y++) {
         for (var x = Math.max(0, lcx - rx); x <= Math.min(gw - 1, lcx + rx); x++) {
           var dx = (x - lcx) / rx, dy = (y - lcy) / ry;
@@ -1027,23 +1100,27 @@
       }
       return out;
     }
-    // river: walk across, jittering perpendicular, 1–2 cells wide
+    // river: walk across, jittering perpendicular; wide (2-3 cells)
+    // through a commons, else the classic thin band
+    var wide = com ? 2 + ri(rng, 2) : 2;
     var horiz = rng() < 0.5;
     if (horiz) {
-      var ry2 = 2 + ri(rng, gh - 4);
+      var ry2 = com ? Math.round((com.y0 + com.y1) / 2) - 1 : 2 + ri(rng, gh - 4);
       for (var gx = 0; gx < gw; gx++) {
-        out.push(ry2 * gw + gx);
-        if (ry2 + 1 < gh) out.push((ry2 + 1) * gw + gx);
+        for (var wy = 0; wy < wide; wy++) {
+          if (ry2 + wy < gh) out.push((ry2 + wy) * gw + gx);
+        }
         if (rng() < 0.5) ry2 += rng() < 0.5 ? -1 : 1;
-        ry2 = Math.max(1, Math.min(gh - 3, ry2));
+        ry2 = Math.max(1, Math.min(gh - wide - 1, ry2));
       }
     } else {
-      var rx2 = 2 + ri(rng, gw - 4);
+      var rx2 = com ? Math.round((com.x0 + com.x1) / 2) - 1 : 2 + ri(rng, gw - 4);
       for (var gy = 0; gy < gh; gy++) {
-        out.push(gy * gw + rx2);
-        if (rx2 + 1 < gw) out.push(gy * gw + rx2 + 1);
+        for (var wx = 0; wx < wide; wx++) {
+          if (rx2 + wx < gw) out.push(gy * gw + rx2 + wx);
+        }
         if (rng() < 0.5) rx2 += rng() < 0.5 ? -1 : 1;
-        rx2 = Math.max(1, Math.min(gw - 3, rx2));
+        rx2 = Math.max(1, Math.min(gw - wide - 1, rx2));
       }
     }
     return out;
@@ -1063,10 +1140,12 @@
     if (rng() >= chance) return comp;
 
     // theme flavour: lakeside leans river, dunes an oasis lake, else mixed
-    var kind;
-    if (themeKey === 'lakeside') kind = rng() < 0.65 ? 'river' : 'lake';
-    else if (themeKey === 'dunes') kind = rng() < 0.7 ? 'lake' : 'river';
-    else kind = rng() < 0.55 ? 'river' : 'lake';
+    var kind = opts.kind;
+    if (!kind) {
+      if (themeKey === 'lakeside') kind = rng() < 0.65 ? 'river' : 'lake';
+      else if (themeKey === 'dunes') kind = rng() < 0.7 ? 'lake' : 'river';
+      else kind = rng() < 0.55 ? 'river' : 'lake';
+    }
 
     // wonder cells are off-limits (don't drown Bigfoot)
     var wonderKeys = {};
