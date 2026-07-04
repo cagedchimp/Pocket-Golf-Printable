@@ -955,14 +955,21 @@
     var cells = new Array(gw * gh).fill(ROUGH);
     var slope = new Array(gw * gh).fill(-1);
     var owner = new Array(gw * gh).fill(0);
+    // region/regionLoc map every grid cell in a hole's footprint back to
+    // that hole and its local cell index, so a sheet-spanning feature can
+    // re-solve any hole it touches (see decorateSheet).
+    var region = new Array(gw * gh).fill(0);
+    var regionLoc = new Array(gw * gh).fill(-1);
     var placements = [];
     for (var idx = 0; idx < n; idx++) {
       var p = placed[idx], it = p.it, h = it.hole, fp = it.fp, rot = p.rot;
       for (var y = fp.y0; y <= fp.y1; y++) {
         for (var x = fp.x0; x <= fp.x1; x++) {
           var sk = y * W + x, t = h.cells[sk], sl = h.slope[sk];
-          if (t === ROUGH && sl < 0) continue; // rough is the background
           var g = gpoint(p.ox, p.oy, fp, it.fw, it.fh, rot, x, y), gk = g[1] * gw + g[0];
+          region[gk] = idx + 1;
+          regionLoc[gk] = sk;
+          if (t === ROUGH && sl < 0) continue; // rough is the background
           if (t !== ROUGH) cells[gk] = t;
           if (sl >= 0) slope[gk] = rotDir(sl, rot);
           owner[gk] = idx + 1;
@@ -979,7 +986,100 @@
         wonder: won ? { key: h.wonder.key, x: won[0], y: won[1] } : null
       });
     }
-    return { w: gw, h: gh, cells: cells, slope: slope, owner: owner, placements: placements };
+    return {
+      w: gw, h: gh, cells: cells, slope: slope, owner: owner,
+      region: region, regionLoc: regionLoc, placements: placements
+    };
+  }
+
+  // A wavy 1-cell water path spanning the sheet edge-to-edge (thin, so
+  // it can always be carried), or a big elliptical lake blob.
+  function featureCells(comp, rng, kind) {
+    var gw = comp.w, gh = comp.h, out = [];
+    if (kind === 'lake') {
+      var lcx = 3 + ri(rng, gw - 6), lcy = 3 + ri(rng, gh - 6);
+      var rx = 4 + ri(rng, 4), ry = 4 + ri(rng, 4);
+      for (var y = Math.max(0, lcy - ry); y <= Math.min(gh - 1, lcy + ry); y++) {
+        for (var x = Math.max(0, lcx - rx); x <= Math.min(gw - 1, lcx + rx); x++) {
+          var dx = (x - lcx) / rx, dy = (y - lcy) / ry;
+          if (dx * dx + dy * dy <= 1) out.push(y * gw + x);
+        }
+      }
+      return out;
+    }
+    // river: walk across, jittering perpendicular, 1–2 cells wide
+    var horiz = rng() < 0.5;
+    if (horiz) {
+      var ry2 = 2 + ri(rng, gh - 4);
+      for (var gx = 0; gx < gw; gx++) {
+        out.push(ry2 * gw + gx);
+        if (ry2 + 1 < gh) out.push((ry2 + 1) * gw + gx);
+        if (rng() < 0.5) ry2 += rng() < 0.5 ? -1 : 1;
+        ry2 = Math.max(1, Math.min(gh - 3, ry2));
+      }
+    } else {
+      var rx2 = 2 + ri(rng, gw - 4);
+      for (var gy = 0; gy < gh; gy++) {
+        out.push(gy * gw + rx2);
+        if (rx2 + 1 < gw) out.push(gy * gw + rx2 + 1);
+        if (rng() < 0.5) rx2 += rng() < 0.5 ? -1 : 1;
+        rx2 = Math.max(1, Math.min(gw - 3, rx2));
+      }
+    }
+    return out;
+  }
+
+  // Add one large water feature (river or lake) spanning a packed sheet.
+  // It only ever floods *rough* cells (never a fairway, green, bunker,
+  // tree or existing water), and every hole it touches is re-solved with
+  // the added water: if a hole would break the 3–6 stroke gate, its water
+  // is reverted, so the sheet stays fully playable. Mutates comp in
+  // place and records comp.feature. Deterministic (seeded rng).
+  function decorateSheet(comp, opts) {
+    opts = opts || {};
+    var rng = opts.rng || mulberry32(1);
+    var themeKey = opts.themeKey || 'classic';
+    var chance = opts.chance == null ? 0.85 : opts.chance;
+    if (rng() >= chance) return comp;
+
+    // theme flavour: lakeside leans river, dunes an oasis lake, else mixed
+    var kind;
+    if (themeKey === 'lakeside') kind = rng() < 0.65 ? 'river' : 'lake';
+    else if (themeKey === 'dunes') kind = rng() < 0.7 ? 'lake' : 'river';
+    else kind = rng() < 0.55 ? 'river' : 'lake';
+
+    // wonder cells are off-limits (don't drown Bigfoot)
+    var wonderKeys = {};
+    comp.placements.forEach(function (p) {
+      if (p.wonder) wonderKeys[p.wonder.y * comp.w + p.wonder.x] = 1;
+    });
+
+    var cand = featureCells(comp, rng, kind).filter(function (gk) {
+      return comp.cells[gk] === ROUGH && !wonderKeys[gk];
+    });
+
+    // group by owning hole; background (region 0) is always safe
+    var byHole = {};
+    cand.forEach(function (gk) {
+      var hi = comp.region[gk];
+      (byHole[hi] = byHole[hi] || []).push(gk);
+    });
+    var paint = [];
+    Object.keys(byHole).forEach(function (hiStr) {
+      var hi = +hiStr, group = byHole[hi];
+      if (hi === 0) { paint = paint.concat(group); return; }
+      var src = comp.placements[hi - 1].hole;
+      var local = src.cells.slice();
+      group.forEach(function (gk) { local[comp.regionLoc[gk]] = WATER; });
+      var best = solve({
+        w: W, h: H, cells: local, slope: src.slope,
+        tee: src.tee, hole: src.hole, wind: src.wind, windStr: src.windStr
+      });
+      if (best !== null && best <= 6) paint = paint.concat(group); // safe
+    });
+    paint.forEach(function (gk) { comp.cells[gk] = WATER; });
+    comp.feature = kind;
+    return comp;
   }
 
   var api = {
@@ -993,6 +1093,7 @@
     generateHole: generateHole,
     composeSheet: composeSheet,
     packSheet: packSheet,
+    decorateSheet: decorateSheet,
     rotDir: rotDir,
     rotPt: rotPt,
     holeFootprint: holeFootprint,

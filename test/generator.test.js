@@ -397,6 +397,44 @@ playCourse.holes.forEach((h, i) => {
   assert(s.w / s.h > 0.6, `packed grid too narrow: ${s.w}x${s.h} = ${(s.w/s.h).toFixed(2)}`);
 }
 
+// decorateSheet: a sheet-spanning water feature must only flood rough,
+// never fairway/green/sand/tree, and must leave every hole solvable
+// (3–6). Sweep several seeds so both rivers and lakes get exercised.
+{
+  const NONROUGH_PLAY = new Set([golf.FAIRWAY, golf.SAND, golf.TREE, golf.GREEN]);
+  let features = 0;
+  for (let s = 0; s < 30; s++) {
+    const course = golf.generateCourse('deco-' + s, 18, 'lakeside', 'standard');
+    const comp = golf.packSheet(course.holes.slice(0, 6));
+    // snapshot non-rough cells before decorating
+    const before = comp.cells.slice();
+    golf.decorateSheet(comp, { rng: golf.mulberry32(1000 + s), themeKey: 'lakeside', chance: 1 });
+    if (comp.feature) features++;
+    // no fairway/green/sand/tree was overwritten
+    for (let k = 0; k < comp.cells.length; k++) {
+      if (NONROUGH_PLAY.has(before[k])) {
+        assert(comp.cells[k] === before[k], `deco-${s}: overwrote protected terrain at ${k}`);
+      }
+    }
+    // reconstruct each hole's local frame with the added water; solve
+    const water = {}; // holeIdx -> [localIdx...]
+    for (let k = 0; k < comp.cells.length; k++) {
+      if (comp.cells[k] === golf.WATER && before[k] === golf.ROUGH && comp.region[k]) {
+        (water[comp.region[k]] = water[comp.region[k]] || []).push(comp.regionLoc[k]);
+      }
+    }
+    comp.placements.forEach(p => {
+      const local = p.hole.cells.slice();
+      (water[p.num] || []).forEach(li => { local[li] = golf.WATER; });
+      const best = golf.solve({ w: golf.W, h: golf.H, cells: local, slope: p.hole.slope,
+        tee: p.hole.tee, hole: p.hole.hole, wind: p.hole.wind, windStr: p.hole.windStr });
+      assert(best !== null && best >= 3 && best <= 6,
+        `deco-${s} hole ${p.num}: unsolvable after feature (best=${best})`);
+    });
+  }
+  assert(features >= 20, `expected most sheets to get a feature, got ${features}/30`);
+}
+
 // Determinism: same seed -> identical course
 const a = golf.generateCourse('determinism', 9);
 const b = golf.generateCourse('determinism', 9);

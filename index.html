@@ -1102,6 +1102,10 @@ function buildContinuous(sheets, course, players) {
   for (var i = 0; i < course.holes.length; i += PER) {
     var group = course.holes.slice(i, i + PER);
     var comp = G.packSheet(group);
+    // A large water feature spanning the sheet, seeded per sheet so it's
+    // reproducible; only floods rough and keeps every hole solvable.
+    var decoRng = G.mulberry32(G.xmur3(course.seed + '|' + course.theme + '|deco|' + i)());
+    G.decorateSheet(comp, { rng: decoRng, themeKey: course.theme });
     var sheet = document.createElement('div');
     sheet.className = 'sheet booklet continuous';
     var board = document.createElement('div');

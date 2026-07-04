@@ -53,7 +53,10 @@ plain HTML/CSS/JS served as static files.
   grid that fills the portrait page, walked boustrophedon (L→R then R→L)
   so each cup ends near the next tee; still rigid placement of
   self-solved holes, so solvability is preserved and no two holes'
-  playable cells touch, both tested); each sets its own `@page` size.
+  playable cells touch, both tested). decorateSheet() then floods one
+  big water feature (river or lake) across the sheet — only over rough,
+  re-solving every hole it touches and reverting water that would break
+  the 3-6 gate, so the sheet stays playable; each sets its own `@page` size.
   Holes now flow vertically or diagonally (tee/cup placement in
   `buildHoleAttempt`), not just top-to-bottom. The
   `players` param (1/2) adds P1/P2 to the scorecard and booklet footer
