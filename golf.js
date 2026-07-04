@@ -305,7 +305,7 @@
       label: 'Deep Forest', trees: 'conifer',
       creek: 0.25, creekWide: 0.2,
       pondN: [0, 1], pondSize: [4, 8],
-      treeN: [10, 14], treeSize: [8, 18],
+      treeN: [15, 19], treeSize: [11, 22],
       greenSandN: [0, 1], fwSandN: [0, 0], sandSize: [2, 3],
       slopeChance: 0.3, slopeRuns: [1, 1],
       nouns: ['Pines', 'Timber', 'Cedars', 'Redwoods', 'Thicket', 'Grove', 'Woods', 'Hollow']
