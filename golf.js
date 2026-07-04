@@ -92,12 +92,13 @@
 
   // Grow a connected blob of up to `size` cells from `seed`, painting
   // `type` into cells where `allowed` returns true.
-  function growBlob(rng, cells, seed, size, type, allowed) {
+  function growBlob(rng, cells, seed, size, type, allowed, hw, hh) {
+    hw = hw || W; hh = hh || H;
     var members = [];
     var seen = {};
     function tryAdd(x, y) {
-      if (!inBounds(x, y)) return false;
-      var k = idx(x, y);
+      if (x < 0 || x >= hw || y < 0 || y >= hh) return false;
+      var k = y * hw + x;
       if (seen[k]) return false;
       if (!allowed(x, y)) return false;
       seen[k] = true;
@@ -117,10 +118,11 @@
 
   // growBlob, but retry from fresh random seeds when the first seed
   // lands somewhere disallowed (keeps holes from coming out barren).
-  function placeBlob(rng, cells, size, type, allowed) {
+  function placeBlob(rng, cells, size, type, allowed, hw, hh) {
+    hw = hw || W; hh = hh || H;
     for (var tries = 0; tries < 12; tries++) {
-      var seed = [1 + ri(rng, W - 2), 1 + ri(rng, H - 2)];
-      var members = growBlob(rng, cells, seed, size, type, allowed);
+      var seed = [1 + ri(rng, hw - 2), 1 + ri(rng, hh - 2)];
+      var members = growBlob(rng, cells, seed, size, type, allowed, hw, hh);
       if (members.length >= Math.max(2, size / 2)) return members;
     }
     return [];
@@ -138,6 +140,9 @@
 
   // Ball lands on `x,y`; follow slope arrows until it rests.
   function resolveSlope(hole, x, y) {
+    var hw = hole.w, hh = hole.h;
+    function idx(x, y) { return y * hw + x; }
+    function inBounds(x, y) { return x >= 0 && x < hw && y >= 0 && y < hh; }
     var seen = {};
     seen[idx(x, y)] = true;
     for (;;) {
@@ -160,6 +165,9 @@
   // shot was lofted (wedge) or the ball landed in the cup (holed is
   // holed). Drift stops at water, trees, the grid edge — or the cup.
   function windPoint(hole, x, y, dist, lofted) {
+    var hw = hole.w, hh = hole.h;
+    function idx(x, y) { return y * hw + x; }
+    function inBounds(x, y) { return x >= 0 && x < hw && y >= 0 && y < hh; }
     var w = hole.wind;
     if (w == null || w < 0 || dist < 4 || lofted ||
         (x === hole.hole.x && y === hole.hole.y)) return [x, y];
@@ -182,14 +190,17 @@
   }
 
   function solve(hole) {
+    var hw = hole.w, hh = hole.h;
+    function idx(x, y) { return y * hw + x; }
+    function inBounds(x, y) { return x >= 0 && x < hw && y >= 0 && y < hh; }
     var start = idx(hole.tee.x, hole.tee.y);
     var target = idx(hole.hole.x, hole.hole.y);
-    var dist = new Array(W * H).fill(Infinity);
+    var dist = new Array(hw * hh).fill(Infinity);
     dist[start] = 0;
     var queue = [start];
     while (queue.length) {
       var cur = queue.shift();
-      var cx = cur % W, cy = (cur - cx) / W;
+      var cx = cur % hw, cy = (cur - cx) / hw;
       var strokes = dist[cur];
       if (strokes >= 12) continue;
       var fromType = hole.cells[cur];
@@ -229,6 +240,9 @@
   // over but never landed on. Each entry carries the wind-drifted
   // point (wx, wy) and the final rest position after slope arrows.
   function shotTargets(hole, x, y, dist, opts) {
+    var hw = hole.w, hh = hole.h;
+    function idx(x, y) { return y * hw + x; }
+    function inBounds(x, y) { return x >= 0 && x < hw && y >= 0 && y < hh; }
     var out = [];
     if (dist < 1) return out;
     var fromType = hole.cells[idx(x, y)];
@@ -262,6 +276,7 @@
   // plus the always-allowed putt of 1 space — or 1-2 on the green.
   // Deduped by landing cell; each move keeps the distance that got it.
   function movesForRoll(hole, x, y, roll, club) {
+    function idx(x, y) { return y * hole.w + x; }
     var t = hole.cells[idx(x, y)];
     var seen = {}, out = [];
     function addAll(moves) {
@@ -421,7 +436,10 @@
   // where a course architect would put them — bunkers guarding the
   // green, trees lining the fairway and filling dogleg elbows, and
   // creeks cutting across the line of play.
-  function buildHoleAttempt(rng, ease, theme, diff) {
+  function buildHoleAttempt(rng, ease, theme, diff, hw, hh) {
+    var W = hw, H = hh; // shadow the module defaults with this hole's dims
+    function idx(x, y) { return y * W + x; }
+    function inBounds(x, y) { return x >= 0 && x < W && y >= 0 && y < H; }
     var cells = new Array(W * H).fill(ROUGH);
     var slope = new Array(W * H).fill(-1);
     // Hazard-count scaling for the difficulty tier (identity on standard).
@@ -518,7 +536,7 @@
     growBlob(rng, cells, [cup.x, cup.y], 6 + ri(rng, 5), GREEN, function (x, y) {
       var t = cells[idx(x, y)];
       return (t === ROUGH || t === FAIRWAY) && nearPt(x, y, cup, 2);
-    });
+    }, W, H);
 
     // Greenside bunkers, seeded on the green's fringe.
     var greenAdj = [];
@@ -542,7 +560,7 @@
         function (x, y) {
           var t = cells[idx(x, y)];
           return (t === ROUGH || t === FAIRWAY) && notEndpoint(x, y) && !nearPt(x, y, tee, 2);
-        });
+        }, W, H);
     }
 
     // Fairway bunkers pinch the ribbon's edges.
@@ -555,7 +573,7 @@
           var t = cells[idx(x, y)];
           return (t === ROUGH || t === FAIRWAY) && offCorridor(x, y) &&
             notEndpoint(x, y) && !nearPt(x, y, tee, 2) && !nearPt(x, y, cup, 2);
-        });
+        }, W, H);
     }
 
     // Trees line the fairway, seeded just off the ribbon's shoulders.
@@ -566,14 +584,14 @@
       side = rng() < 0.5 ? -1 : 1;
       growBlob(rng, cells,
         [centerline[k][0] + side * (2 + ri(rng, 2)), centerline[k][1] + ri(rng, 3) - 1],
-        rollSize(rng, theme.treeSize, ease), TREE, treeAllowed);
+        rollSize(rng, theme.treeSize, ease), TREE, treeAllowed, W, H);
     }
     // A copse in each dogleg elbow punishes corner-cutting.
     for (i = 1; i < waypoints.length - 1; i++) {
       if (rng() < 0.7) {
         side = rng() < 0.5 ? -1 : 1;
         growBlob(rng, cells, [waypoints[i][0] + side * 2, waypoints[i][1]],
-          Math.max(2, Math.round((3 + ri(rng, 4)) * ease)), TREE, treeAllowed);
+          Math.max(2, Math.round((3 + ri(rng, 4)) * ease)), TREE, treeAllowed, W, H);
       }
     }
 
@@ -604,7 +622,7 @@
       placeBlob(rng, cells, rollSize(rng, theme.pondSize, ease), WATER, function (x, y) {
         return isRough(x, y) && offCorridor(x, y) &&
           !nearPt(x, y, tee, 2) && !nearPt(x, y, cup, 2);
-      });
+      }, W, H);
     }
 
     // Greenside moat (tough tiers): a water band across the approach,
@@ -670,9 +688,10 @@
     return { w: W, h: H, cells: cells, slope: slope, tee: tee, hole: cup, wonder: null, wind: -1, windStr: 0 };
   }
 
-  function generateHole(rng, theme, diff) {
+  function generateHole(rng, theme, diff, hw, hh) {
     theme = theme || THEMES.classic;
     diff = diff || DIFFICULTIES.standard;
+    hw = hw || W; hh = hh || H;
     for (var attempt = 0; attempt < 300; attempt++) {
       // Back off obstacle density if we keep failing, so generation
       // always terminates with a playable hole.
@@ -681,7 +700,7 @@
       // slightly-too-easy hole than generation that never terminates.
       var minBest = attempt < 150 ? diff.minBest : 3;
       var maxBest = attempt < 150 ? diff.maxBest : 6;
-      var hole = buildHoleAttempt(rng, ease, theme, diff);
+      var hole = buildHoleAttempt(rng, ease, theme, diff, hw, hh);
       var best = solve(hole);
       if (best !== null && best >= minBest && best <= maxBest) {
         hole.best = best;
@@ -689,7 +708,7 @@
       }
     }
     // Practically unreachable: an empty hole is always solvable.
-    var fallback = buildHoleAttempt(rng, 0, theme, diff);
+    var fallback = buildHoleAttempt(rng, 0, theme, diff, hw, hh);
     fallback.best = solve(fallback);
     return fallback;
   }
@@ -727,9 +746,15 @@
       : NAME_B;
     var name = pick(rng, NAME_A) + ' ' + pick(rng, nounPool) + ' ' + pick(rng, NAME_C);
 
+    // Hole size variety: mostly the classic frame, with some longer or
+    // larger holes mixed in — they fill continuous sheets better and
+    // vary the printed rhythm. Sizes only grow (smaller frames can't
+    // satisfy the 3-stroke floor).
+    var SIZES = [[15, 20], [15, 20], [15, 20], [15, 24], [18, 22], [17, 24]];
     var holes = [];
     for (var i = 0; i < numHoles; i++) {
-      var h = generateHole(rng, theme, diff);
+      var dims = pick(rng, SIZES);
+      var h = generateHole(rng, theme, diff, dims[0], dims[1]);
       h.trees = theme.trees; // biome's tree species, for rendering
       holes.push(h);
     }
@@ -773,10 +798,10 @@
       if (lairs.length) {
         var hb = pick(rng, lairs);
         for (var tries = 0; tries < 100; tries++) {
-          var bx = 1 + ri(rng, W - 2), by = 1 + ri(rng, H - 2);
+          var bx = 1 + ri(rng, hb.w - 2), by = 1 + ri(rng, hb.h - 2);
           var far = Math.max(Math.abs(bx - hb.tee.x), Math.abs(by - hb.tee.y)) > 3 &&
                     Math.max(Math.abs(bx - hb.hole.x), Math.abs(by - hb.hole.y)) > 3;
-          if (hb.cells[idx(bx, by)] === habitat && hb.slope[idx(bx, by)] < 0 && far) {
+          if (hb.cells[by * hb.w + bx] === habitat && hb.slope[by * hb.w + bx] < 0 && far) {
             hb.wonder = { key: wonderKey, x: bx, y: by };
             break;
           }
@@ -820,20 +845,22 @@
   // grid plus, per hole, where its tee / cup / wonder landed.
   function composeSheet(holes, cols, rows, gap) {
     gap = gap == null ? 1 : gap;
-    var gw = cols * W + (cols - 1) * gap;
-    var gh = rows * H + (rows - 1) * gap;
+    var cw = 0, ch = 0;
+    holes.forEach(function (h) { cw = Math.max(cw, h.w); ch = Math.max(ch, h.h); });
+    var gw = cols * cw + (cols - 1) * gap;
+    var gh = rows * ch + (rows - 1) * gap;
     var cells = new Array(gw * gh).fill(ROUGH);
     var slope = new Array(gw * gh).fill(-1);
     var placements = [];
     for (var n = 0; n < holes.length && n < cols * rows; n++) {
       var h = holes[n];
-      var ox = (n % cols) * (W + gap);
-      var oy = Math.floor(n / cols) * (H + gap);
-      for (var y = 0; y < H; y++) {
-        for (var x = 0; x < W; x++) {
+      var ox = (n % cols) * (cw + gap);
+      var oy = Math.floor(n / cols) * (ch + gap);
+      for (var y = 0; y < h.h; y++) {
+        for (var x = 0; x < h.w; x++) {
           var gk = (oy + y) * gw + (ox + x);
-          cells[gk] = h.cells[y * W + x];
-          slope[gk] = h.slope[y * W + x];
+          cells[gk] = h.cells[y * h.w + x];
+          slope[gk] = h.slope[y * h.w + x];
         }
       }
       placements.push({
@@ -872,14 +899,14 @@
   // isn't plain rough, plus slope arrows and any wonder. This footprint
   // (far smaller than the full W×H frame) is what the packer arranges.
   function holeFootprint(h) {
-    var x0 = W, y0 = H, x1 = -1, y1 = -1;
+    var x0 = h.w, y0 = h.h, x1 = -1, y1 = -1;
     function grow(x, y) {
       if (x < x0) x0 = x; if (y < y0) y0 = y;
       if (x > x1) x1 = x; if (y > y1) y1 = y;
     }
-    for (var y = 0; y < H; y++) {
-      for (var x = 0; x < W; x++) {
-        var k = y * W + x;
+    for (var y = 0; y < h.h; y++) {
+      for (var x = 0; x < h.w; x++) {
+        var k = y * h.w + x;
         if (h.cells[k] !== ROUGH || h.slope[k] >= 0) grow(x, y);
       }
     }
@@ -1039,7 +1066,7 @@
       var it = p.it, fp = it.fp, out = [];
       for (var y = fp.y0; y <= fp.y1; y++) {
         for (var x = fp.x0; x <= fp.x1; x++) {
-          var sk = y * W + x;
+          var sk = y * it.hole.w + x;
           if (it.hole.cells[sk] === ROUGH && it.hole.slope[sk] < 0) continue;
           var q = rotPt(x - fp.x0, y - fp.y0, it.fw, it.fh, p.rot);
           out.push(q);
@@ -1146,7 +1173,7 @@
         var p = placed[idx], it = p.it, h = it.hole, fp = it.fp, rot = p.rot;
         for (var y = fp.y0; y <= fp.y1; y++) {
           for (var x = fp.x0; x <= fp.x1; x++) {
-            var sk = y * W + x, t = h.cells[sk], sl = h.slope[sk];
+            var sk = y * h.w + x, t = h.cells[sk], sl = h.slope[sk];
             var g = gpoint(p.ox, p.oy, fp, it.fw, it.fh, rot, x, y), gk = g[1] * gw + g[0];
             region[gk] = idx + 1;
             regionLoc[gk] = sk;
@@ -1215,20 +1242,21 @@
   // rough, and off-sheet cells count as trees (unreachable). Slopes and
   // wind rotate back into the hole's own orientation.
   function extractFrame(comp, pl) {
-    var cells = new Array(W * H).fill(TREE);
-    var slope = new Array(W * H).fill(-1);
+    var hw = pl.hole.w, hh = pl.hole.h;
+    var cells = new Array(hw * hh).fill(TREE);
+    var slope = new Array(hw * hh).fill(-1);
     var back = (4 - pl.rot) % 4;
-    for (var y = 0; y < H; y++) {
-      for (var x = 0; x < W; x++) {
+    for (var y = 0; y < hh; y++) {
+      for (var x = 0; x < hw; x++) {
         var g = gpoint(pl.ox, pl.oy, pl.fp, pl.fw, pl.fh, pl.rot, x, y);
         if (g[0] < 0 || g[0] >= comp.w || g[1] < 0 || g[1] >= comp.h) continue;
         var gk = g[1] * comp.w + g[0];
-        cells[y * W + x] = comp.cells[gk];
-        slope[y * W + x] = rotDir(comp.slope[gk], back);
+        cells[y * hw + x] = comp.cells[gk];
+        slope[y * hw + x] = rotDir(comp.slope[gk], back);
       }
     }
     return {
-      w: W, h: H, cells: cells, slope: slope,
+      w: hw, h: hh, cells: cells, slope: slope,
       tee: pl.hole.tee, hole: pl.hole.hole,
       wind: pl.hole.wind, windStr: pl.hole.windStr
     };
@@ -1390,7 +1418,7 @@
       if (!bad) break;
       // frame rect of the offending hole on the sheet
       var c1 = gpoint(bad.ox, bad.oy, bad.fp, bad.fw, bad.fh, bad.rot, 0, 0);
-      var c2 = gpoint(bad.ox, bad.oy, bad.fp, bad.fw, bad.fh, bad.rot, W - 1, H - 1);
+      var c2 = gpoint(bad.ox, bad.oy, bad.fp, bad.fw, bad.fh, bad.rot, bad.hole.w - 1, bad.hole.h - 1);
       var fx0 = Math.min(c1[0], c2[0]), fx1 = Math.max(c1[0], c2[0]);
       var fy0 = Math.min(c1[1], c2[1]), fy1 = Math.max(c1[1], c2[1]);
       painted = painted.filter(function (gk) {
