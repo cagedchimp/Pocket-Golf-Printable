@@ -314,7 +314,7 @@
       label: 'Lakeside', trees: 'deciduous',
       creek: 0.75, creekWide: 0.5,
       pondN: [1, 2], pondSize: [10, 20],
-      treeN: [1, 2], treeSize: [3, 7],
+      treeN: [4, 6], treeSize: [5, 11],
       greenSandN: [0, 2], fwSandN: [0, 0], sandSize: [2, 4],
       slopeChance: 0.3, slopeRuns: [1, 1],
       nouns: ['Lakes', 'Shores', 'Coves', 'Marsh', 'Waters', 'Inlet', 'Bayou', 'Springs']
@@ -323,7 +323,7 @@
       label: 'Sandy Dunes', trees: 'palm',
       creek: 0.1, creekWide: 0.2,
       pondN: [0, 1], pondSize: [4, 7],
-      treeN: [0, 1], treeSize: [3, 5],
+      treeN: [3, 5], treeSize: [4, 9],
       greenSandN: [2, 3], fwSandN: [2, 4], sandSize: [3, 6],
       slopeChance: 0.35, slopeRuns: [1, 2],
       nouns: ['Dunes', 'Sands', 'Links', 'Flats', 'Barrens', 'Shells', 'Salt Flats']
