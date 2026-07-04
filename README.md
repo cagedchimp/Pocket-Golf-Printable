@@ -56,6 +56,12 @@ dependencies.
 - **Players** — 1 or 2, in every layout. Two players adds P1/P2 stroke
   blanks to the hole cards, P1/P2 columns to the scorecard, and a
   mulligan track per player on the title card and booklet footers.
+- **Courses** — print a pack of 1, 3, 5, or 10 courses in one go. The
+  first course is exactly the one you configured; the extras get
+  derived seeds (`myseed-2`, `myseed-3`, …) in the same style, or pick
+  *Surprise mix* to scatter random styles and difficulties through the
+  pack. Packs are seeded too, so a pack URL prints the same courses
+  for everyone.
 - **▶ Play** — play the course on screen instead of (or before)
   printing it. Roll the virtual d6, then tap one of the highlighted
   spots to hit the ball there: solid rings are your full shot

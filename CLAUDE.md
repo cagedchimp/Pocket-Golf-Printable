@@ -40,7 +40,9 @@ plain HTML/CSS/JS served as static files.
   grid size (`hole.w`/`hole.h`, drawn per hole from a weighted pool in
   `generateCourse`; the module W/H are only defaults) — every rule
   and generation helper must use the hole's dims, never the globals.
-- **Shareable URLs**: seed, theme, diff, holes, and `play=1` live in the
+- **Shareable URLs**: seed, theme, diff, holes, layout, players,
+  count/mix (course packs — extras use derived seeds `seed-N`, mix
+  draws theme/diff from a seeded stream), and `play=1` live in the
   query string; keep `syncURL()`/boot restore in sync when adding state.
   Standard difficulty must add no RNG draws and scale nothing during
   generation, so pre-difficulty share links keep producing identical

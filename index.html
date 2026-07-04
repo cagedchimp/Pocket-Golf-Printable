@@ -495,6 +495,17 @@
     <option value="1" selected>1 player</option>
     <option value="2">2 players</option>
   </select>
+  <label for="count">Courses</label>
+  <select id="count">
+    <option value="1" selected>1</option>
+    <option value="3">3</option>
+    <option value="5">5</option>
+    <option value="10">10</option>
+  </select>
+  <select id="mix" title="Extra courses in the pack: keep your style, or surprise styles and difficulties" disabled>
+    <option value="same" selected>Same style</option>
+    <option value="mix">Surprise mix</option>
+  </select>
   <span class="spacer"></span>
   <button id="play-toggle">▶ Play</button>
   <button id="print" class="primary">🖨 Print</button>
@@ -1643,25 +1654,18 @@ function syncURL() {
   var layout = document.getElementById('layout').value;
   if (layout !== 'sheet') params.set('layout', layout);
   if (document.getElementById('players').value === '2') params.set('players', '2');
+  var count = document.getElementById('count').value;
+  if (count !== '1') {
+    params.set('count', count);
+    if (document.getElementById('mix').value === 'mix') params.set('mix', '1');
+  }
   if (play) params.set('play', '1');
   history.replaceState(null, '', '?' + params.toString());
 }
 
-function rebuild() {
-  var seed = document.getElementById('seed').value.trim() || 'pocket-golf';
-  var numHoles = parseInt(document.getElementById('holes').value, 10);
-  var theme = document.getElementById('theme').value;
-  var layout = document.getElementById('layout').value;
-  var players = parseInt(document.getElementById('players').value, 10);
-  var course = G.generateCourse(seed, numHoles, theme, document.getElementById('diff').value);
-  syncURL();
-  // The in-play legend shares the title card's items (tree species
-  // follows the theme).
-  document.getElementById('p-legend').innerHTML = legendHTML(course.treeStyle);
-
-  var sheets = document.getElementById('sheets');
-  sheets.innerHTML = '';
-
+// One course's sheets, appended in the chosen layout. Each course
+// starts on a fresh page so packs collate cleanly.
+function buildCourseSheets(sheets, course, layout, players) {
   if (layout === 'booklet') {
     buildBooklet(sheets, course, players);
   } else if (layout === 'continuous') {
@@ -1689,6 +1693,45 @@ function rebuild() {
         sheets.appendChild(sheet);
       }
     }
+  }
+}
+
+function rebuild() {
+  var seed = document.getElementById('seed').value.trim() || 'pocket-golf';
+  var numHoles = parseInt(document.getElementById('holes').value, 10);
+  var theme = document.getElementById('theme').value;
+  var diffKey = document.getElementById('diff').value;
+  var layout = document.getElementById('layout').value;
+  var players = parseInt(document.getElementById('players').value, 10);
+  var count = parseInt(document.getElementById('count').value, 10);
+  var mix = document.getElementById('mix').value === 'mix';
+  document.getElementById('mix').disabled = count === 1;
+  syncURL();
+
+  var sheets = document.getElementById('sheets');
+  sheets.innerHTML = '';
+
+  // Course packs: course 1 is exactly the configured course (and the
+  // one play mode uses); extras get derived seeds, and on a surprise
+  // mix their style + difficulty come from a seeded stream so the
+  // same URL always prints the identical pack.
+  var themeKeys = Object.keys(G.THEMES);
+  var diffKeys = Object.keys(G.DIFFICULTIES);
+  for (var ci = 0; ci < count; ci++) {
+    var cSeed = ci === 0 ? seed : seed + '-' + (ci + 1);
+    var cTheme = theme, cDiff = diffKey;
+    if (mix && ci > 0) {
+      var mr = G.mulberry32(G.xmur3(seed + '|mix|' + ci)());
+      cTheme = themeKeys[Math.floor(mr() * themeKeys.length)];
+      cDiff = diffKeys[Math.floor(mr() * diffKeys.length)];
+    }
+    var course = G.generateCourse(cSeed, numHoles, cTheme, cDiff);
+    if (ci === 0) {
+      // The in-play legend shares the title card's items (tree species
+      // follows the theme).
+      document.getElementById('p-legend').innerHTML = legendHTML(course.treeStyle);
+    }
+    buildCourseSheets(sheets, course, layout, players);
   }
 
   // A new course invalidates any round in progress — restart it.
@@ -1747,6 +1790,8 @@ document.getElementById('layout').addEventListener('change', function () {
   rebuild();
 });
 document.getElementById('players').addEventListener('change', rebuild);
+document.getElementById('count').addEventListener('change', rebuild);
+document.getElementById('mix').addEventListener('change', rebuild);
 document.getElementById('print').addEventListener('click', function () { window.print(); });
 
 // Restore state from the URL so course links are shareable.
@@ -1765,6 +1810,11 @@ if (bootLayout === 'single' || bootLayout === 'booklet' || bootLayout === 'conti
   updatePageSize();
 }
 if (bootParams.get('players') === '2') document.getElementById('players').value = '2';
+var bootCount = bootParams.get('count');
+if (bootCount === '3' || bootCount === '5' || bootCount === '10') {
+  document.getElementById('count').value = bootCount;
+  if (bootParams.get('mix') === '1') document.getElementById('mix').value = 'mix';
+}
 rebuild();
 // ?play=1 deep-links straight into a round of the shared course.
 if (bootParams.get('play') === '1') startPlay();
