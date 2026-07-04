@@ -95,8 +95,10 @@ drawn from a separate RNG stream so hole layouts stay untouched):
 shots of 4+ spaces drift one space downwind per strength point after
 landing — never into water/trees/off-grid, holed balls stay holed;
 wind is kept on a hole only if the wind-aware `solve()` still fits the
-difficulty's stroke gate. Per-hole par = the wind-aware optimum + 2
-(`hole.par`, no RNG draws; `course.par` is the sum); mulligans per course come from the
+difficulty's stroke gate. Per-hole par = the wind-aware optimum + 2,
++1 on long holes (tee→cup Chebyshev ≥ 20) and −1 on short ones (≤ 16)
+(`hole.par`, no RNG draws; `course.par` is the sum — casual pars 4-6,
+tough 5-9); mulligans per course come from the
 difficulty tier (Casual 8 / Standard 6 / Tough 4). Difficulty also
 gates each hole's optimal stroke count (Casual exactly 3, Tough 4-6),
 scales hazard density, and on Tough adds greenside moats, island

@@ -15,6 +15,7 @@ function assert(cond, msg) {
 const SEEDS = 60;
 const t0 = Date.now();
 const bestCounts = {};
+const parCounts = {};
 const wonderCounts = {};
 
 // A hole's wonder must be a known kind allowed on this theme, sit on
@@ -53,8 +54,11 @@ for (let s = 0; s < SEEDS; s++) {
     assert(best >= 3 && best <= 6, `seed ${s} hole ${i + 1}: best=${best} outside 3-6`);
     bestCounts[best] = (bestCounts[best] || 0) + 1;
 
-    // Par is the wind-aware optimum + 2, and the course par is the sum.
-    assert(h.par === h.best + 2, `seed ${s} hole ${i + 1}: par=${h.par}, best=${h.best}`);
+    // Par is the wind-aware optimum + 2, ±1 by tee→cup length.
+    const len = Math.max(Math.abs(h.tee.x - h.hole.x), Math.abs(h.tee.y - h.hole.y));
+    const wantPar = h.best + 2 + (len >= 20 ? 1 : len <= 16 ? -1 : 0);
+    assert(h.par === wantPar, `seed ${s} hole ${i + 1}: par=${h.par}, want ${wantPar}`);
+    parCounts[h.par] = (parCounts[h.par] || 0) + 1;
 
     const teeCell = h.cells[h.tee.y * h.w + h.tee.x];
     const cupCell = h.cells[h.hole.y * h.w + h.hole.x];
@@ -158,6 +162,14 @@ console.log('Avg cells/hole —',
     assert(JSON.stringify(tough) ===
       JSON.stringify(golf.generateCourse('diff-' + s, 9, 'lakeside', 'tough')),
       `diff-${s}: tough generation not deterministic`);
+
+    // Pars vary within a course and spread upward with difficulty.
+    const avgPar = c => c.par / c.holes.length;
+    assert(avgPar(tough) > avgPar(casual),
+      `diff-${s}: tough avg par ${avgPar(tough).toFixed(2)} should beat casual ${avgPar(casual).toFixed(2)}`);
+    const spread = c => new Set(c.holes.map(h => h.par)).size;
+    assert(spread(casual) + spread(legacy) + spread(tough) >= 5,
+      `diff-${s}: pars too uniform (spreads ${spread(casual)}/${spread(legacy)}/${spread(tough)})`);
     checkWonder(casual, `diff-${s} casual`);
     checkWonder(tough, `diff-${s} tough`);
   }
@@ -508,6 +520,7 @@ assert(JSON.stringify(a) !== JSON.stringify(c), 'different seeds should differ')
 const dt = Date.now() - t0;
 console.log(`Generated ${SEEDS} courses (${SEEDS * 18} holes) in ${dt}ms`);
 console.log('Optimal-stroke distribution:', bestCounts);
+console.log('Par distribution:', parCounts);
 console.log('Wonders seen:', wonderCounts);
 
 if (failures) {

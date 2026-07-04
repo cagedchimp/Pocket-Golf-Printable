@@ -792,10 +792,17 @@
       h.windStr = 0;
     });
 
-    // Par per hole comes from the measured optimum (wind included):
-    // optimal + 2. Derived from solve() results already in hand — no
-    // RNG draws — so hole layouts stay seed-stable.
-    holes.forEach(function (h) { h.par = h.best + 2; });
+    // Par per hole comes from the measured optimum (wind included) + 2,
+    // stretched by hole length like real golf: long carries play as
+    // par 5s (+1), short pitches as par 3s (−1). Difficulties spread
+    // naturally on top since their optimal-stroke gates differ
+    // (casual 3s → pars 4-6, tough 4-6 → pars 5-9). Derived from
+    // solve() results already in hand — no RNG draws — so hole
+    // layouts stay seed-stable.
+    holes.forEach(function (h) {
+      var d = Math.max(Math.abs(h.tee.x - h.hole.x), Math.abs(h.tee.y - h.hole.y));
+      h.par = h.best + 2 + (d >= 20 ? 1 : d <= 16 ? -1 : 0);
+    });
 
     // Maybe hide a wonder on one hole (free mulligan when spotted).
     var wonderKey = rollWonder(rng, themeKey);
