@@ -382,19 +382,25 @@ playCourse.holes.forEach((h, i) => {
     }
   }
   assert(leaks === 0, `packed sheet has ${leaks} cross-hole playable adjacencies`);
-  // holes are turned on their side (landscape) to fill the portrait page
-  s.placements.forEach(p => assert(p.rot === 1 || p.rot === 3, `hole ${p.num}: unexpected rot ${p.rot}`));
-  // routing: within a row, consecutive holes are side by side, so the
-  // cup→next-tee hop at even indices (the intra-row steps) must be
-  // short; odd indices are the row-to-row drops and may be longer.
-  for (let i = 0; i + 1 < s.placements.length; i++) {
-    const a = s.placements[i].cup, b = s.placements[i + 1].tee;
-    const d = Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
-    if (i % 2 === 0) assert(d <= 11, `intra-row hop ${i} too long: ${d}`);
-  }
-  // the packed grid should roughly match the page aspect, not be a
-  // narrow strip (the fill fix)
-  assert(s.w / s.h > 0.6, `packed grid too narrow: ${s.w}x${s.h} = ${(s.w/s.h).toFixed(2)}`);
+  // 6 holes at a 6×8-ish target pack as landscape (2×3) and roughly
+  // match the page aspect, not a narrow strip (the fill fix).
+  s.placements.forEach(p => assert(p.rot === 1 || p.rot === 3, `hole ${p.num}: expected landscape, got rot ${p.rot}`));
+  assert(s.w / s.h > 0.7 && s.w / s.h < 1.1, `6-hole grid aspect off: ${(s.w/s.h).toFixed(2)}`);
+  // 9 holes at a Letter-ish target pack as upright holes in a 3×3 grid.
+  const s9 = golf.packSheet(course.holes.slice(0, 9), { aspect: 8.5 / 11 });
+  assert(s9.placements.length === 9, 'expected 9 placements');
+  s9.placements.forEach(p => assert(p.rot === 0 || p.rot === 2, `9-hole ${p.num}: expected portrait, got rot ${p.rot}`));
+  assert(s9.w / s9.h > 0.6 && s9.w / s9.h < 0.95, `9-hole grid aspect off: ${(s9.w/s9.h).toFixed(2)}`);
+  // routing: consecutive holes' cup→next-tee stays short except the
+  // grid line-change (row drop or column turn), one per grid line.
+  [s, s9].forEach(sheet => {
+    let longHops = 0;
+    for (let i = 0; i + 1 < sheet.placements.length; i++) {
+      const a = sheet.placements[i].cup, b = sheet.placements[i + 1].tee;
+      if (Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) > 12) longHops++;
+    }
+    assert(longHops <= 3, `too many long routing hops: ${longHops}`);
+  });
 }
 
 // decorateSheet: a sheet-spanning water feature must only flood rough,

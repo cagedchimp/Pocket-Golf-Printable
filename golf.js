@@ -904,50 +904,70 @@
     return (teeLeftUnderRot1 === teeLeft) ? 1 : 3;
   }
 
-  // Pack several holes onto one shared grid as a walkable route that
-  // fills the portrait page. Holes are turned on their side (landscape)
-  // and laid in a 2-column grid, snaking left→right along one row then
-  // right→left along the next; each hole is oriented so its cup sits
-  // beside the following hole's tee — a real green-to-next-tee routing.
-  // Landscape holes fill the grid cells of a portrait sheet far better
-  // than upright ones. Placement stays rigid (translate + 90° rotation)
-  // from each hole's own solved frame, so solvability is preserved, and
-  // with a rough margin around every cell no two holes' playable cells
-  // touch. Deterministic. Same return shape as composeSheet.
+  // The 180° flip (rot 0 vs 2) putting an upright hole's tee at the top
+  // (teeTop) or bottom of its cell — both keep the footprint portrait.
+  function vertRot(h, teeTop) {
+    var teeAbove = h.tee.y <= h.hole.y;
+    return (teeAbove === teeTop) ? 0 : 2;
+  }
+
+  // Pack holes onto one shared grid as a walkable route that fills the
+  // page. Orientation (portrait vs landscape) and column count are chosen
+  // to best match the target page aspect: six holes fill a 6×8 page as a
+  // 2×3 grid of landscape holes; nine holes fill Letter as a 3×3 grid of
+  // upright holes. Portrait grids route down/up columns, landscape grids
+  // snake left/right across rows — either way each cup ends beside the
+  // next tee. Rigid translate+rotation of self-solved holes, with rough
+  // margins between cells: solvability preserved, no cross-hole playable
+  // adjacency. Deterministic. Same return shape as composeSheet.
   function packSheet(holes, opts) {
     opts = opts || {};
     var margin = opts.margin == null ? 1 : opts.margin;
+    var target = opts.aspect || (6 / 8);
     var n = holes.length;
-    var cols = n === 1 ? 1 : 2;
-    var rows = Math.ceil(n / cols);
 
     var items = holes.map(function (h, i) {
       var fp = holeFootprint(h);
       return { hole: h, idx: i, fp: fp, fw: fp.x1 - fp.x0 + 1, fh: fp.y1 - fp.y0 + 1 };
     });
+    var maxFW = 0, maxFH = 0;
+    items.forEach(function (it) { maxFW = Math.max(maxFW, it.fw); maxFH = Math.max(maxFH, it.fh); });
 
-    // Uniform cells sized to the largest landscape footprint (width =
-    // portrait height fh, height = portrait width fw).
-    var cellW = 0, cellH = 0;
-    items.forEach(function (it) {
-      cellW = Math.max(cellW, it.fh + 2 * margin);
-      cellH = Math.max(cellH, it.fw + 2 * margin);
+    // Pick orientation + columns whose grid aspect is closest to the page.
+    var best = null;
+    [false, true].forEach(function (land) {
+      var cw = (land ? maxFH : maxFW) + 2 * margin;
+      var ch = (land ? maxFW : maxFH) + 2 * margin;
+      for (var c = 1; c <= n; c++) {
+        var r = Math.ceil(n / c);
+        var err = Math.abs((c * cw) / (r * ch) - target);
+        if (!best || err < best.err) best = { land: land, cols: c, rows: r, cw: cw, ch: ch, err: err };
+      }
     });
+    var land = best.land, cols = best.cols, rows = best.rows, cellW = best.cw, cellH = best.ch;
 
-    // Boustrophedon: even rows walk left→right (tee-left), odd rows
-    // right→left (tee-right); centre each landscape hole in its cell.
+    // Place each hole in grid order with green-to-next-tee routing:
+    // landscape → row boustrophedon (L→R then R→L); portrait → column
+    // serpentine (down then up). Centre each hole in its cell.
     var placed = new Array(n);
     for (var k = 0; k < n; k++) {
-      var row = Math.floor(k / cols), inRow = k % cols;
-      var leftToRight = (row % 2 === 0);
-      var col = leftToRight ? inRow : (cols - 1 - inRow);
-      var it = items[k];
-      var rot = horizRot(it.hole, leftToRight);
-      var lw = it.fh, lh = it.fw; // landscape dims
+      var it = items[k], rot, col, row;
+      if (land) {
+        row = Math.floor(k / cols);
+        var inRow = k % cols, l2r = (row % 2 === 0);
+        col = l2r ? inRow : (cols - 1 - inRow);
+        rot = horizRot(it.hole, l2r);
+      } else {
+        col = Math.floor(k / rows);
+        var inCol = k % rows, down = (col % 2 === 0);
+        row = down ? inCol : (rows - 1 - inCol);
+        rot = vertRot(it.hole, down);
+      }
+      var hw = (rot % 2 ? it.fh : it.fw), hh = (rot % 2 ? it.fw : it.fh);
       placed[k] = {
         it: it, rot: rot,
-        ox: col * cellW + Math.floor((cellW - lw) / 2),
-        oy: row * cellH + Math.floor((cellH - lh) / 2)
+        ox: col * cellW + Math.floor((cellW - hw) / 2),
+        oy: row * cellH + Math.floor((cellH - hh) / 2)
       };
     }
     var gw = cols * cellW, gh = rows * cellH;

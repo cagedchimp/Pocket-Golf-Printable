@@ -47,7 +47,7 @@ plain HTML/CSS/JS served as static files.
   hides them on screen but `@media print` shows them again, so a user
   can print while playing. Three layouts (`layout` param): `sheet`
   (4-up), `single` (one card per page), `booklet` (6×8 grid of cards),
-  `continuous` (6×8, six holes packed onto one shared grid via
+  `continuous` (6×8 pad = 6 holes, Letter/A4 = 9, packed onto one shared grid via
   `packSheet` — tight per-hole footprints skyline-packed with 90°
   a rough gutter, turned on their side (landscape) and laid in a 2×3
   grid that fills the portrait page, walked boustrophedon (L→R then R→L)
