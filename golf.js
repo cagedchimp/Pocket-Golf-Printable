@@ -1085,10 +1085,13 @@
           a.oy > b.oy + bh + 1 || b.oy > a.oy + ah + 1) return true; // bboxes far apart
       var bset = {};
       for (var i = 0; i < bm.length; i++) bset[(b.oy + bm[i][1]) * 4096 + (b.ox + bm[i][0])] = 1;
+      // block only direct adjacency: one rough cell between two holes'
+      // playable cells is the invariant, and a single-cell seam is what
+      // lets fairways interlace like a real course map
       for (i = 0; i < am.length; i++) {
         var gx = a.ox + am[i][0], gy = a.oy + am[i][1];
-        for (var dy = -2; dy <= 2; dy++) {
-          for (var dx = -2; dx <= 2; dx++) {
+        for (var dy = -1; dy <= 1; dy++) {
+          for (var dx = -1; dx <= 1; dx++) {
             if (bset[(gy + dy) * 4096 + (gx + dx)]) return false;
           }
         }
@@ -1136,6 +1139,44 @@
           }
         }
         if (!movedAny) break;
+      }
+      // Interlace pass: pull each hole toward its route-predecessor so
+      // consecutive holes nest head-to-tail down to the 1-cell seam —
+      // fairways side by side like the printed course maps.
+      for (var round2 = 0; round2 < 40; round2++) {
+        var moved2 = false;
+        for (var ni = 1; ni < n; ni++) {
+          var pn = placed[ni], prev = placed[ni - 1];
+          var nw2 = (pn.rot % 2 ? pn.it.fh : pn.it.fw), nh2 = (pn.rot % 2 ? pn.it.fw : pn.it.fh);
+          var pw2 = (prev.rot % 2 ? prev.it.fh : prev.it.fw), ph2 = (prev.rot % 2 ? prev.it.fw : prev.it.fh);
+          var txc = prev.ox + pw2 / 2, tyc = prev.oy + ph2 / 2;
+          var hxc = pn.ox + nw2 / 2, hyc = pn.oy + nh2 / 2;
+          var sx2 = txc > hxc + 1 ? 1 : txc < hxc - 1 ? -1 : 0;
+          var sy2 = tyc > hyc + 1 ? 1 : tyc < hyc - 1 ? -1 : 0;
+          var steps2 = [];
+          if (sx2 && sy2) steps2.push([sx2, sy2]);
+          if (sx2) steps2.push([sx2, 0]);
+          if (sy2) steps2.push([0, sy2]);
+          for (var si2 = 0; si2 < steps2.length; si2++) {
+            var nx2 = pn.ox + steps2[si2][0], ny2 = pn.oy + steps2[si2][1];
+            if (nx2 < 1 || ny2 < 1 || nx2 + nw2 > gw - 1 || ny2 + nh2 > gh - 1) continue;
+            var oX2 = pn.ox, oY2 = pn.oy;
+            pn.ox = nx2; pn.oy = ny2;
+            var ok2 = true;
+            var pm2 = playableMask(pn);
+            for (var mi2 = 0; mi2 < pm2.length && ok2; mi2++) {
+              var mgx2 = pn.ox + pm2[mi2][0], mgy2 = pn.oy + pm2[mi2][1];
+              if (mgx2 >= commons.x0 && mgx2 <= commons.x1 &&
+                  mgy2 >= commons.y0 && mgy2 <= commons.y1) ok2 = false;
+            }
+            for (var cj2 = 0; cj2 < n && ok2; cj2++) {
+              if (cj2 !== ni && !clearOf(pn, placed[cj2])) ok2 = false;
+            }
+            if (ok2) { moved2 = true; break; }
+            pn.ox = oX2; pn.oy = oY2;
+          }
+        }
+        if (!moved2) break;
       }
       // Crop the sheet to its content (playable cells + commons), with a
       // rough apron: dense layouts shouldn't float in an empty border.
@@ -1404,6 +1445,31 @@
       }
       return members.length;
     }
+    // 2a. seam forest first: where two different holes' cells come close
+    // (within 2 either side), the dividing rough becomes a tree line —
+    // the thin strips that separate parallel fairways on course maps.
+    for (var gy2 = 1; gy2 < comp.h - 1; gy2++) {
+      for (var gx2 = 1; gx2 < comp.w - 1; gx2++) {
+        var gk2 = gy2 * comp.w + gx2;
+        if (!paintable(gk2)) continue;
+        var seen1 = 0, seen2 = 0;
+        for (var dy2 = -2; dy2 <= 2 && !seen2; dy2++) {
+          for (var dx2 = -2; dx2 <= 2 && !seen2; dx2++) {
+            var nx3 = gx2 + dx2, ny3 = gy2 + dy2;
+            if (nx3 < 0 || nx3 >= comp.w || ny3 < 0 || ny3 >= comp.h) continue;
+            var o = comp.owner[ny3 * comp.w + nx3];
+            if (!o) continue;
+            if (!seen1) seen1 = o;
+            else if (o !== seen1) seen2 = o;
+          }
+        }
+        if (seen2 && rng() < 0.6) {
+          comp.cells[gk2] = TREE;
+          painted.push(gk2);
+        }
+      }
+    }
+
     var density = themeKey === 'forest' ? 2.2 : themeKey === 'dunes' ? 0.7 :
                   themeKey === 'highlands' ? 1.0 : 1.4;
     var nBlobs = Math.round(comp.w * comp.h / 240 * density);
