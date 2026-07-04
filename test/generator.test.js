@@ -382,28 +382,41 @@ playCourse.holes.forEach((h, i) => {
     }
   }
   assert(leaks === 0, `packed sheet has ${leaks} cross-hole playable adjacencies`);
-  // ring layout: 5+ holes circle a central commons block where the big
-  // landscape feature lives. Grid aspect stays page-like, the commons is
-  // a real block (not a sliver), and the ring closes — every cup ends
-  // near the next tee, including last cup back around to hole 1's tee.
+  // organic cluster: holes compact into an interlaced blob with no
+  // reserved centerpiece. Grid aspect stays page-like, consecutive
+  // holes stay routed close, and neighbours reach the 1-cell seam.
   const s9 = golf.packSheet(course.holes.slice(0, 9), { aspect: 8.5 / 11 });
   assert(s9.placements.length === 9, 'expected 9 placements');
-  [[s, 12, 16], [s9, 26, 34]].forEach(([sheet, minCW, minCH]) => {
-    assert(sheet.w / sheet.h > 0.7 && sheet.w / sheet.h < 1.0,
+  [s, s9].forEach(sheet => {
+    assert(!sheet.commons, 'organic layout should not reserve a commons');
+    assert(sheet.w / sheet.h > 0.55 && sheet.w / sheet.h < 1.3,
       `grid aspect off: ${(sheet.w/sheet.h).toFixed(2)}`);
-    assert(sheet.commons, 'ring layout should reserve a commons');
-    const cw = sheet.commons.x1 - sheet.commons.x0 + 1;
-    const ch = sheet.commons.y1 - sheet.commons.y0 + 1;
-    assert(cw >= minCW - 4 && ch >= minCH - 4, `commons too small: ${cw}x${ch}`);
     for (let i = 0; i + 1 < sheet.placements.length; i++) {
       const a = sheet.placements[i].cup, b = sheet.placements[i + 1].tee;
       const d = Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
-      assert(d <= 24, `hop ${i} too long: ${d}`);
+      assert(d <= 26, `hop ${i} too long: ${d}`);
     }
-    const last = sheet.placements[sheet.placements.length - 1].cup;
-    const first = sheet.placements[0].tee;
-    assert(Math.max(Math.abs(last.x - first.x), Math.abs(last.y - first.y)) <= 32,
-      'ring does not close back near hole 1');
+    // interlacing: most consecutive pairs sit at the minimum legal gap
+    function nearestGap(a, b) {
+      let bestD = 99;
+      for (let k = 0; k < sheet.cells.length; k++) {
+        if (sheet.owner[k] !== a) continue;
+        const x1 = k % sheet.w, y1 = (k - x1) / sheet.w;
+        for (let j = 0; j < sheet.cells.length; j++) {
+          if (sheet.owner[j] !== b) continue;
+          const x2 = j % sheet.w, y2 = (j - x2) / sheet.w;
+          const d = Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2));
+          if (d < bestD) bestD = d;
+        }
+      }
+      return bestD;
+    }
+    let tight = 0;
+    for (let i = 1; i < sheet.placements.length; i++) {
+      if (nearestGap(i, i + 1) <= 3) tight++;
+    }
+    assert(tight >= sheet.placements.length - 3,
+      `holes not interlaced: only ${tight} tight consecutive pairs`);
   });
   // commons-anchored lakes are big: force a lake and count its cells
   {
@@ -455,22 +468,22 @@ playCourse.holes.forEach((h, i) => {
   }
   assert(features >= 20, `expected most sheets to get a feature, got ${features}/30`);
 
-  // no hollow middle: after decoration, at most ~a third of the commons
-  // may still be plain rough, on every theme
+  // decorated sheets stay playable as printed on every theme, and the
+  // interior of the cluster carries decoration (no big bare hollow):
+  // within the content bounding box, plain rough stays a minority.
   for (const theme of ['classic', 'forest', 'lakeside', 'dunes', 'highlands']) {
     for (let s = 0; s < 4; s++) {
       const course = golf.generateCourse('mid-' + s, 9, theme, 'standard');
       const comp = golf.packSheet(course.holes.slice(0, 6), { aspect: 6 / 8 });
       golf.decorateSheet(comp, { rng: golf.mulberry32(500 + s), themeKey: theme });
-      const c = comp.commons;
       let bare = 0, total = 0;
-      for (let y = c.y0; y <= c.y1; y++) {
-        for (let x = c.x0; x <= c.x1; x++) {
+      for (let y = 4; y < comp.h - 4; y++) {
+        for (let x = 4; x < comp.w - 4; x++) {
           total++;
           if (comp.cells[y * comp.w + x] === golf.ROUGH && comp.slope[y * comp.w + x] < 0) bare++;
         }
       }
-      assert(bare <= total * 0.38, `${theme} mid-${s}: hollow commons (${bare}/${total} bare)`);
+      assert(bare <= total * 0.52, `${theme} mid-${s}: sparse interior (${bare}/${total} bare)`);
       const res = golf.validateSheet(comp);
       assert(res.every(b => b !== null && b >= 3 && b <= 6),
         `${theme} mid-${s}: sheet not playable as printed`);

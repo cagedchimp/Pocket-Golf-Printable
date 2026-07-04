@@ -967,97 +967,43 @@
     var placed = new Array(n);
     var gw, gh, commons = null;
 
-    if (n >= 5) {
-      // Ring layout: holes circle a central commons block where a big
-      // landscape feature (lake, wide river) lives. Landscape holes walk
-      // the top row L→R, portrait holes descend the right side, landscape
-      // holes walk the bottom row R→L, portrait holes climb back up the
-      // left — a closed loop where every cup ends beside the next tee.
-      var topN = Math.round(n / 3), bottomN = topN;
-      var sideN = n - topN - bottomN;
-      var rightN = Math.ceil(sideN / 2), leftN = sideN - rightN;
-      var midRows = Math.max(rightN, leftN, 1);
-      var midH = midRows * PH;
-      gw = Math.max(Math.max(topN, bottomN) * LW,
-                    PW * ((leftN ? 1 : 0) + (rightN ? 1 : 0)) + 14);
-      gh = LH + midH + LH;
-
-      function spread(j, count, span, size) {
-        if (count <= 1) return Math.floor((span - size) / 2);
-        return Math.round(j * (span - size) / (count - 1));
+    // Seed layout: a boustrophedon grid whose orientation and column
+    // count best match the page aspect (landscape 2×3 on a 6×8 pad,
+    // portrait 3×3 on Letter), routed so each cup ends beside the next
+    // tee. Compaction below then melts the grid into an organic
+    // cluster — the grid only decides the route's rough shape.
+    var best = null;
+    [false, true].forEach(function (land) {
+      var cw = land ? LW : PW, ch = land ? LH : PH;
+      for (var c = 1; c <= n; c++) {
+        var r = Math.ceil(n / c);
+        var err = Math.abs((c * cw) / (r * ch) - target);
+        if (!best || err < best.err) best = { land: land, cols: c, rows: r, cw: cw, ch: ch, err: err };
       }
-      var k = 0, j;
-      for (j = 0; j < topN; j++, k++) {           // top row, L→R
-        var itT = items[k];
-        placed[k] = {
-          it: itT, rot: horizRot(itT.hole, true),
-          ox: spread(j, topN, gw, itT.fh),
-          oy: Math.floor((LH - itT.fw) / 2)
-        };
+    });
+    var cols = best.cols, rows = best.rows, cellW = best.cw, cellH = best.ch;
+    for (var k2 = 0; k2 < n; k2++) {
+      var it = items[k2], rot, col, row;
+      if (best.land) {
+        row = Math.floor(k2 / cols);
+        var inRow = k2 % cols, l2r = (row % 2 === 0);
+        col = l2r ? inRow : (cols - 1 - inRow);
+        rot = horizRot(it.hole, l2r);
+      } else {
+        col = Math.floor(k2 / rows);
+        var inCol = k2 % rows, down = (col % 2 === 0);
+        row = down ? inCol : (rows - 1 - inCol);
+        rot = vertRot(it.hole, down);
       }
-      for (j = 0; j < rightN; j++, k++) {         // right side, downward
-        var itR = items[k];
-        placed[k] = {
-          it: itR, rot: vertRot(itR.hole, true),
-          ox: gw - PW + Math.floor((PW - itR.fw) / 2),
-          oy: LH + spread(j, rightN, midH, itR.fh)
-        };
-      }
-      for (j = 0; j < bottomN; j++, k++) {        // bottom row, R→L
-        var itB = items[k];
-        placed[k] = {
-          it: itB, rot: horizRot(itB.hole, false),
-          ox: gw - itB.fh - spread(j, bottomN, gw, itB.fh),
-          oy: LH + midH + Math.floor((LH - itB.fw) / 2)
-        };
-      }
-      for (j = 0; j < leftN; j++, k++) {          // left side, upward
-        var itL = items[k];
-        placed[k] = {
-          it: itL, rot: vertRot(itL.hole, false),
-          ox: Math.floor((PW - itL.fw) / 2),
-          oy: LH + (midH - itL.fh) - spread(j, leftN, midH, itL.fh)
-        };
-      }
-      commons = {
-        x0: (leftN ? PW : 0) + 1, x1: gw - (rightN ? PW : 0) - 2,
-        y0: LH + 1, y1: LH + midH - 2
+      var hw = (rot % 2 ? it.fh : it.fw), hh = (rot % 2 ? it.fw : it.fh);
+      placed[k2] = {
+        it: it, rot: rot,
+        ox: col * cellW + Math.floor((cellW - hw) / 2),
+        oy: row * cellH + Math.floor((cellH - hh) / 2)
       };
-    } else {
-      // Few holes: simple grid, orientation chosen to match the page.
-      var best = null;
-      [false, true].forEach(function (land) {
-        var cw = land ? LW : PW, ch = land ? LH : PH;
-        for (var c = 1; c <= n; c++) {
-          var r = Math.ceil(n / c);
-          var err = Math.abs((c * cw) / (r * ch) - target);
-          if (!best || err < best.err) best = { land: land, cols: c, rows: r, cw: cw, ch: ch, err: err };
-        }
-      });
-      var cols = best.cols, rows = best.rows, cellW = best.cw, cellH = best.ch;
-      for (var k2 = 0; k2 < n; k2++) {
-        var it = items[k2], rot, col, row;
-        if (best.land) {
-          row = Math.floor(k2 / cols);
-          var inRow = k2 % cols, l2r = (row % 2 === 0);
-          col = l2r ? inRow : (cols - 1 - inRow);
-          rot = horizRot(it.hole, l2r);
-        } else {
-          col = Math.floor(k2 / rows);
-          var inCol = k2 % rows, down = (col % 2 === 0);
-          row = down ? inCol : (rows - 1 - inCol);
-          rot = vertRot(it.hole, down);
-        }
-        var hw = (rot % 2 ? it.fh : it.fw), hh = (rot % 2 ? it.fw : it.fh);
-        placed[k2] = {
-          it: it, rot: rot,
-          ox: col * cellW + Math.floor((cellW - hw) / 2),
-          oy: row * cellH + Math.floor((cellH - hh) / 2)
-        };
-      }
-      gw = cols * cellW;
-      gh = rows * cellH;
     }
+    gw = cols * cellW;
+    gh = rows * cellH;
 
     // Rotated playable-cell mask per placement (offsets from ox/oy),
     // for the compaction clearance checks.
@@ -1103,9 +1049,9 @@
     // centre, step by step, while it keeps a 2-cell clearance from all
     // other holes and stays on the sheet. Holes end up hugging the
     // central feature and each other like a real course map.
-    if (commons && opts.compact !== false) {
+    if (opts.compact !== false) {
       placed.forEach(function (p) { p.home = [p.ox, p.oy]; });
-      var ccx = (commons.x0 + commons.x1) / 2, ccy = (commons.y0 + commons.y1) / 2;
+      var ccx = gw / 2, ccy = gh / 2;
       for (var round = 0; round < 60; round++) {
         var movedAny = false;
         for (var ci = 0; ci < n; ci++) {
@@ -1124,13 +1070,6 @@
             var oldX = pc.ox, oldY = pc.oy;
             pc.ox = nx; pc.oy = ny;
             var ok = true;
-            // never intrude on the commons — the lake lives there
-            var pm = playableMask(pc);
-            for (var mi = 0; mi < pm.length && ok; mi++) {
-              var mgx = pc.ox + pm[mi][0], mgy = pc.oy + pm[mi][1];
-              if (mgx >= commons.x0 && mgx <= commons.x1 &&
-                  mgy >= commons.y0 && mgy <= commons.y1) ok = false;
-            }
             for (var cj = 0; cj < n && ok; cj++) {
               if (cj !== ci && !clearOf(pc, placed[cj])) ok = false;
             }
@@ -1163,12 +1102,6 @@
             var oX2 = pn.ox, oY2 = pn.oy;
             pn.ox = nx2; pn.oy = ny2;
             var ok2 = true;
-            var pm2 = playableMask(pn);
-            for (var mi2 = 0; mi2 < pm2.length && ok2; mi2++) {
-              var mgx2 = pn.ox + pm2[mi2][0], mgy2 = pn.oy + pm2[mi2][1];
-              if (mgx2 >= commons.x0 && mgx2 <= commons.x1 &&
-                  mgy2 >= commons.y0 && mgy2 <= commons.y1) ok2 = false;
-            }
             for (var cj2 = 0; cj2 < n && ok2; cj2++) {
               if (cj2 !== ni && !clearOf(pn, placed[cj2])) ok2 = false;
             }
@@ -1178,9 +1111,9 @@
         }
         if (!moved2) break;
       }
-      // Crop the sheet to its content (playable cells + commons), with a
-      // rough apron: dense layouts shouldn't float in an empty border.
-      var bx0 = commons.x0, bx1 = commons.x1, by0 = commons.y0, by1 = commons.y1;
+      // Crop the sheet to its content, with a rough apron: dense
+      // layouts shouldn't float in an empty border.
+      var bx0 = gw, bx1 = 0, by0 = gh, by1 = 0;
       placed.forEach(function (p) {
         playableMask(p).forEach(function (q) {
           var gx = p.ox + q[0], gy = p.oy + q[1];
@@ -1194,8 +1127,6 @@
         p.ox += shiftX; p.oy += shiftY;
         p.home = [p.home[0] + shiftX, p.home[1] + shiftY];
       });
-      commons.x0 += shiftX; commons.x1 += shiftX;
-      commons.y0 += shiftY; commons.y1 += shiftY;
       gw = bx1 + shiftX + PADC + 1;
       gh = by1 + shiftY + PADC + 1;
     }
@@ -1248,7 +1179,7 @@
     // frame, which can (rarely) change how the hole plays as printed.
     // Any hole outside the 3-6 gate steps back toward its original
     // spot; if the sheet still won't validate, redo without compaction.
-    if (commons && opts.compact !== false) {
+    if (opts.compact !== false) {
       var healthy = false;
       for (var fix = 0; fix < 3 * n; fix++) {
         var printed = validateSheet(comp);
@@ -1327,8 +1258,10 @@
         rx = Math.round((com.x1 - com.x0) / 2) + 3 + ri(rng, 3);
         ry = Math.round((com.y1 - com.y0) / 2) + 3 + ri(rng, 3);
       } else {
-        lcx = 3 + ri(rng, gw - 6); lcy = 3 + ri(rng, gh - 6);
-        rx = 4 + ri(rng, 4); ry = 4 + ri(rng, 4);
+        // free-roaming: a mid-size organic lake somewhere in the cluster
+        lcx = 6 + ri(rng, Math.max(1, gw - 12));
+        lcy = 6 + ri(rng, Math.max(1, gh - 12));
+        rx = 5 + ri(rng, 5); ry = 5 + ri(rng, 5);
       }
       // organic shoreline: the radius wobbles around the ellipse with a
       // couple of seeded sine harmonics — bays and headlands, not a
@@ -1348,7 +1281,7 @@
     }
     // river: walk across, jittering perpendicular; properly wide
     // (3-4 cells) through a commons, else the classic thin band
-    var wide = com ? 3 + ri(rng, 2) : 2;
+    var wide = com ? 3 + ri(rng, 2) : 2 + ri(rng, 2);
     var horiz = rng() < 0.5;
     if (horiz) {
       var ry2 = com ? Math.round((com.y0 + com.y1) / 2) - 1 : 2 + ri(rng, gh - 4);
@@ -1385,9 +1318,7 @@
     opts = opts || {};
     var rng = opts.rng || mulberry32(1);
     var themeKey = opts.themeKey || 'classic';
-    // A ring sheet reserves its commons FOR the feature — always fill
-    // it. Featureless sheets only happen in the gridded fallback.
-    var chance = opts.chance == null ? (comp.commons ? 1 : 0.85) : opts.chance;
+    var chance = opts.chance == null ? 0.9 : opts.chance;
     var wantFeature = rng() < chance;
 
     // theme flavour: lakeside leans river, dunes an oasis lake, else mixed
@@ -1477,25 +1408,25 @@
       treeBlob(1 + ri(rng, comp.w - 2), 1 + ri(rng, comp.h - 2), 3 + ri(rng, 9));
     }
 
-    // 2b. no hollow middle, ever: whatever the feature left as plain
-    // rough inside the commons gets planted over with forest until at
-    // most a third of the commons is still bare.
-    if (comp.commons) {
-      var c = comp.commons;
-      var commonsCells = [];
-      for (var cyy = c.y0; cyy <= c.y1; cyy++) {
-        for (var cxx = c.x0; cxx <= c.x1; cxx++) commonsCells.push(cyy * comp.w + cxx);
+    // 2b. no hollow patches: plant forest over the cluster's leftover
+    // rough pockets until at most ~45% of the interior is still bare —
+    // the sheet reads as a full course map on every theme.
+    {
+      var inset = 4;
+      var interior = [];
+      for (var cyy = inset; cyy < comp.h - inset; cyy++) {
+        for (var cxx = inset; cxx < comp.w - inset; cxx++) interior.push(cyy * comp.w + cxx);
       }
-      function bareCommons() {
+      function bareInterior() {
         var bare = [];
-        for (var i = 0; i < commonsCells.length; i++) {
-          if (paintable(commonsCells[i])) bare.push(commonsCells[i]);
+        for (var i = 0; i < interior.length; i++) {
+          if (paintable(interior[i])) bare.push(interior[i]);
         }
         return bare;
       }
-      for (var fillTry = 0; fillTry < 40; fillTry++) {
-        var bare = bareCommons();
-        if (bare.length <= commonsCells.length * 0.33) break;
+      for (var fillTry = 0; fillTry < 80; fillTry++) {
+        var bare = bareInterior();
+        if (bare.length <= interior.length * 0.45) break;
         var seedK = bare[ri(rng, bare.length)];
         treeBlob(seedK % comp.w, Math.floor(seedK / comp.w), 5 + ri(rng, 10));
       }
