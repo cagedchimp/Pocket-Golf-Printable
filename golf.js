@@ -985,6 +985,19 @@
       }
     });
     var cols = best.cols, rows = best.rows, cellW = best.cw, cellH = best.ch;
+    // Deterministic per-hole jitter (hashed from the hole itself, no
+    // RNG draws) so lanes don't read as aligned rows and columns: a
+    // brick-bond half-cell stagger on alternate lanes, plus a nudge of
+    // each hole inside its cell instead of dead-centring it.
+    // Keeps >=1 cell of the cell's apron on every side (slack is
+    // always >=2 thanks to the margin baked into the cell dims), so a
+    // jittered seed can never start two holes closer than the seam.
+    function jit(it2, slack) {
+      if (slack < 2) return Math.floor(slack / 2);
+      var h2 = (it2.idx * 7919 + it2.hole.tee.x * 131 + it2.hole.tee.y * 37 +
+                it2.hole.hole.x * 17 + it2.hole.hole.y * 5) >>> 0;
+      return 1 + h2 % (slack - 1);
+    }
     for (var k2 = 0; k2 < n; k2++) {
       var it = items[k2], rot, col, row;
       if (best.land) {
@@ -999,14 +1012,17 @@
         rot = vertRot(it.hole, down);
       }
       var hw = (rot % 2 ? it.fh : it.fw), hh = (rot % 2 ? it.fw : it.fh);
+      var slackX = Math.max(0, cellW - hw), slackY = Math.max(0, cellH - hh);
       placed[k2] = {
         it: it, rot: rot,
-        ox: col * cellW + Math.floor((cellW - hw) / 2),
-        oy: row * cellH + Math.floor((cellH - hh) / 2)
+        ox: col * cellW + jit(it, slackX) +
+            (best.land ? 0 : (row % 2 ? Math.floor(cellW / 2) : 0)),
+        oy: row * cellH + jit({ idx: it.idx + 3, hole: it.hole }, slackY) +
+            (best.land ? (col % 2 ? Math.floor(cellH / 2) : 0) : 0)
       };
     }
-    gw = cols * cellW;
-    gh = rows * cellH;
+    gw = cols * cellW + (best.land || rows < 2 ? 0 : Math.ceil(cellW / 2));
+    gh = rows * cellH + (best.land && cols > 1 ? Math.ceil(cellH / 2) : 0);
 
     // Rotated playable-cell mask per placement (offsets from ox/oy),
     // for the compaction clearance checks.
