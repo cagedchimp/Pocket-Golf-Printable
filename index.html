@@ -848,7 +848,10 @@ function courseMask(comp, radius) {
   return mask;
 }
 
-function renderCompositeSVG(comp, treeStyle) {
+// baseNum shifts the tee badges so multi-sheet courses number their
+// holes continuously (sheet 2 of 18 shows 10-18, not 1-9 again).
+function renderCompositeSVG(comp, treeStyle, baseNum) {
+  baseNum = baseNum || 0;
   var wpx = comp.w * U + PAD * 2;
   var hpx = comp.h * U + PAD * 2;
   var s = svgOpen(wpx, hpx, ' preserveAspectRatio="xMidYMid meet"');
@@ -895,11 +898,15 @@ function renderCompositeSVG(comp, treeStyle) {
   comp.placements.forEach(function (p) {
     if (p.wonder) s += WONDER_GLYPHS[p.wonder.key](p.wonder.x, p.wonder.y);
     s += flagGlyph(p.cup.x, p.cup.y);
-    // tee as a numbered badge so each hole is identifiable on the sheet
+    // tee as a numbered badge so each hole is identifiable on the sheet;
+    // two-digit numbers get a wider disc and slightly smaller digits
     var tx = cx(p.tee.x), ty = cy(p.tee.y);
-    s += '<circle cx="' + tx + '" cy="' + ty + '" r="' + (U * 0.42) + '" fill="#3f4442"/>' +
-      '<text x="' + tx + '" y="' + (ty + U * 0.26) + '" text-anchor="middle" font-size="' +
-      (U * 0.72) + '" font-weight="700" fill="#ffffff">' + p.num + '</text>';
+    var numText = String(baseNum + p.num);
+    var br = numText.length > 1 ? U * 0.58 : U * 0.42;
+    var bf = numText.length > 1 ? U * 0.6 : U * 0.72;
+    s += '<circle cx="' + tx + '" cy="' + ty + '" r="' + br + '" fill="#3f4442"/>' +
+      '<text x="' + tx + '" y="' + (ty + bf * 0.36) + '" text-anchor="middle" font-size="' +
+      bf + '" font-weight="700" fill="#ffffff">' + numText + '</text>';
     if (p.wind >= 0) {
       s += '<text x="' + (tx + U * 0.6) + '" y="' + (ty - U * 0.55) +
         '" font-size="' + (U * 0.7) + '" fill="#3f4442">' +
@@ -1153,7 +1160,7 @@ function buildContinuous(sheets, course, players, dimsOverride) {
     sheet.style.height = dims.h;
     var board = document.createElement('div');
     board.className = 'cont-board';
-    board.innerHTML = renderCompositeSVG(comp, course.treeStyle);
+    board.innerHTML = renderCompositeSVG(comp, course.treeStyle, i);
     sheet.appendChild(board);
     sheet.appendChild(bookletFooter(course, players, i + 1, Math.min(i + PER, course.holes.length)));
     sheets.appendChild(sheet);
