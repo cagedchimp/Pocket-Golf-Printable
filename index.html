@@ -230,6 +230,24 @@
   .legend svg { flex: none; }
   .title-card .credit { font-size: 9px; opacity: .5; margin-top: 10px; }
 
+  /* ------------------------------ generating overlay --------------- */
+  #gen-overlay {
+    position: fixed; inset: 0; z-index: 60;
+    display: none; flex-direction: column; align-items: center;
+    justify-content: center; gap: 16px;
+    background: rgba(250, 250, 248, .82);
+  }
+  #gen-overlay.show { display: flex; }
+  #gen-overlay .spin {
+    width: 54px; height: 54px; border-radius: 50%;
+    border: 4px solid #d8dcda; border-top-color: #3f4442;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    animation: gspin .9s linear infinite;
+  }
+  #gen-msg { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: #3f4442; opacity: .8; }
+  @keyframes gspin { to { transform: rotate(360deg); } }
+
   /* ------------------------------ scorecard ------------------------ */
   .score-card h3 {
     text-align: center;
@@ -463,6 +481,7 @@
     }
     .sheet:last-child { break-after: auto; }
     .sheet.booklet.blank .blank-note { display: none; }
+    #gen-overlay { display: none !important; }
   }
 </style>
 <style id="page-size">@page { size: letter; margin: 0; }</style>
@@ -510,6 +529,8 @@
   <button id="play-toggle">▶ Play</button>
   <button id="print" class="primary">🖨 Print</button>
 </div>
+
+<div id="gen-overlay"><div class="spin">⛳</div><div id="gen-msg">Generating course…</div></div>
 
 <div id="sheets"></div>
 
@@ -1696,7 +1717,14 @@ function buildCourseSheets(sheets, course, layout, players) {
   }
 }
 
+// Course generation blocks the main thread, so packs and the heavier
+// composed layouts build one course per task with a paint in between —
+// that's what lets the spinner overlay actually animate and count up.
+// A newer rebuild bumps the token and orphans any in-flight build.
+var rebuildToken = 0;
 function rebuild() {
+  var token = ++rebuildToken;
+  var wasPlaying = !!play; // restart the round only if one was live when this rebuild began
   var seed = document.getElementById('seed').value.trim() || 'pocket-golf';
   var numHoles = parseInt(document.getElementById('holes').value, 10);
   var theme = document.getElementById('theme').value;
@@ -1717,7 +1745,7 @@ function rebuild() {
   // same URL always prints the identical pack.
   var themeKeys = Object.keys(G.THEMES);
   var diffKeys = Object.keys(G.DIFFICULTIES);
-  for (var ci = 0; ci < count; ci++) {
+  function buildOne(ci) {
     var cSeed = ci === 0 ? seed : seed + '-' + (ci + 1);
     var cTheme = theme, cDiff = diffKey;
     if (mix && ci > 0) {
@@ -1733,9 +1761,35 @@ function rebuild() {
     }
     buildCourseSheets(sheets, course, layout, players);
   }
+  function finish() {
+    document.getElementById('gen-overlay').classList.remove('show');
+    // A new course invalidates any round in progress — restart it.
+    // (Not one begun after this rebuild started, e.g. the play=1 boot.)
+    if (play && wasPlaying) startPlay();
+  }
 
-  // A new course invalidates any round in progress — restart it.
-  if (play) startPlay();
+  // Quick single-course card builds stay synchronous — no spinner flash.
+  var slow = count > 1 || layout === 'booklet' || layout === 'continuous';
+  if (!slow) {
+    buildOne(0);
+    finish();
+    return;
+  }
+
+  var overlay = document.getElementById('gen-overlay');
+  var msg = document.getElementById('gen-msg');
+  overlay.classList.add('show');
+  msg.textContent = count > 1 ? 'Generating course 1 of ' + count + '…' : 'Generating course…';
+  var ci = 0;
+  function step() {
+    if (token !== rebuildToken) return; // superseded — let the new build own the page
+    if (ci >= count) { finish(); return; }
+    buildOne(ci);
+    ci++;
+    if (ci < count) msg.textContent = 'Generating course ' + (ci + 1) + ' of ' + count + '…';
+    setTimeout(step, 16); // yield so the browser paints the overlay between courses
+  }
+  requestAnimationFrame(function () { setTimeout(step, 16); });
 }
 
 function randomSeed() {
