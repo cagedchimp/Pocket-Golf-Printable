@@ -42,6 +42,12 @@ dependencies.
   rating on its title page. Try
   [Lakeside on Tough](https://cagedchimp.github.io/Pocket-Golf-Printable/?seed=demo-course&theme=lakeside&diff=tough&holes=18).
 - **Holes** — 9 or 18.
+- **Layout** — *4-up sheet* (four cards per Letter/A4 page), *Single
+  cards* (one pocket-size card per page, for PDF export), or
+  *Booklet (6×8)* — several holes to a 6×8 page with a two-player
+  footer, in the style of the printed Paper Apps GOLF pad.
+- **Players** — 1 or 2. Two players adds P1/P2 stroke columns to the
+  scorecard and a mulligan track per player on the booklet footer.
 - **Paper** — Letter (quarters are 4.25 × 5.5 in) or A4 (quarters are
   exactly A6).
 - **▶ Play** — play the course on screen instead of (or before)
