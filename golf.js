@@ -1032,45 +1032,214 @@
       gh = rows * cellH;
     }
 
-    var cells = new Array(gw * gh).fill(ROUGH);
-    var slope = new Array(gw * gh).fill(-1);
-    var owner = new Array(gw * gh).fill(0);
-    // region/regionLoc map every grid cell in a hole's footprint back to
-    // that hole and its local cell index, so a sheet-spanning feature can
-    // re-solve any hole it touches (see decorateSheet).
-    var region = new Array(gw * gh).fill(0);
-    var regionLoc = new Array(gw * gh).fill(-1);
-    var placements = [];
-    for (var idx = 0; idx < n; idx++) {
-      var p = placed[idx], it = p.it, h = it.hole, fp = it.fp, rot = p.rot;
+    // Rotated playable-cell mask per placement (offsets from ox/oy),
+    // for the compaction clearance checks.
+    function playableMask(p) {
+      if (p._mask) return p._mask;
+      var it = p.it, fp = it.fp, out = [];
       for (var y = fp.y0; y <= fp.y1; y++) {
         for (var x = fp.x0; x <= fp.x1; x++) {
-          var sk = y * W + x, t = h.cells[sk], sl = h.slope[sk];
-          var g = gpoint(p.ox, p.oy, fp, it.fw, it.fh, rot, x, y), gk = g[1] * gw + g[0];
-          region[gk] = idx + 1;
-          regionLoc[gk] = sk;
-          if (t === ROUGH && sl < 0) continue; // rough is the background
-          if (t !== ROUGH) cells[gk] = t;
-          if (sl >= 0) slope[gk] = rotDir(sl, rot);
-          owner[gk] = idx + 1;
+          var sk = y * W + x;
+          if (it.hole.cells[sk] === ROUGH && it.hole.slope[sk] < 0) continue;
+          var q = rotPt(x - fp.x0, y - fp.y0, it.fw, it.fh, p.rot);
+          out.push(q);
         }
       }
-      var tee = gpoint(p.ox, p.oy, fp, it.fw, it.fh, rot, h.tee.x, h.tee.y);
-      var cup = gpoint(p.ox, p.oy, fp, it.fw, it.fh, rot, h.hole.x, h.hole.y);
-      var won = h.wonder ? gpoint(p.ox, p.oy, fp, it.fw, it.fh, rot, h.wonder.x, h.wonder.y) : null;
-      placements.push({
-        hole: h, num: idx + 1, rot: rot,
-        tee: { x: tee[0], y: tee[1] },
-        cup: { x: cup[0], y: cup[1] },
-        wind: rotDir(h.wind, rot), windStr: h.windStr,
-        wonder: won ? { key: h.wonder.key, x: won[0], y: won[1] } : null
+      p._mask = out;
+      return out;
+    }
+    // No playable cell of a may come within Chebyshev 1 of one of b's —
+    // that's the 1-cell rough gutter that keeps holes' shots separate.
+    function clearOf(a, b) {
+      var am = playableMask(a), bm = playableMask(b);
+      var aw = (a.rot % 2 ? a.it.fh : a.it.fw), ah = (a.rot % 2 ? a.it.fw : a.it.fh);
+      var bw = (b.rot % 2 ? b.it.fh : b.it.fw), bh = (b.rot % 2 ? b.it.fw : b.it.fh);
+      if (a.ox > b.ox + bw + 1 || b.ox > a.ox + aw + 1 ||
+          a.oy > b.oy + bh + 1 || b.oy > a.oy + ah + 1) return true; // bboxes far apart
+      var bset = {};
+      for (var i = 0; i < bm.length; i++) bset[(b.oy + bm[i][1]) * 4096 + (b.ox + bm[i][0])] = 1;
+      for (i = 0; i < am.length; i++) {
+        var gx = a.ox + am[i][0], gy = a.oy + am[i][1];
+        for (var dy = -2; dy <= 2; dy++) {
+          for (var dx = -2; dx <= 2; dx++) {
+            if (bset[(gy + dy) * 4096 + (gx + dx)]) return false;
+          }
+        }
+      }
+      return true;
+    }
+
+    // Compaction (ring layouts): pull every hole toward the commons
+    // centre, step by step, while it keeps a 2-cell clearance from all
+    // other holes and stays on the sheet. Holes end up hugging the
+    // central feature and each other like a real course map.
+    if (commons && opts.compact !== false) {
+      placed.forEach(function (p) { p.home = [p.ox, p.oy]; });
+      var ccx = (commons.x0 + commons.x1) / 2, ccy = (commons.y0 + commons.y1) / 2;
+      for (var round = 0; round < 60; round++) {
+        var movedAny = false;
+        for (var ci = 0; ci < n; ci++) {
+          var pc = placed[ci];
+          var cw2 = (pc.rot % 2 ? pc.it.fh : pc.it.fw), ch2 = (pc.rot % 2 ? pc.it.fw : pc.it.fh);
+          var hcx = pc.ox + cw2 / 2, hcy = pc.oy + ch2 / 2;
+          var sx = ccx > hcx + 1 ? 1 : ccx < hcx - 1 ? -1 : 0;
+          var sy = ccy > hcy + 1 ? 1 : ccy < hcy - 1 ? -1 : 0;
+          var steps = [];
+          if (sx && sy) steps.push([sx, sy]);
+          if (sx) steps.push([sx, 0]);
+          if (sy) steps.push([0, sy]);
+          for (var si = 0; si < steps.length; si++) {
+            var nx = pc.ox + steps[si][0], ny = pc.oy + steps[si][1];
+            if (nx < 1 || ny < 1 || nx + cw2 > gw - 1 || ny + ch2 > gh - 1) continue;
+            var oldX = pc.ox, oldY = pc.oy;
+            pc.ox = nx; pc.oy = ny;
+            var ok = true;
+            // never intrude on the commons — the lake lives there
+            var pm = playableMask(pc);
+            for (var mi = 0; mi < pm.length && ok; mi++) {
+              var mgx = pc.ox + pm[mi][0], mgy = pc.oy + pm[mi][1];
+              if (mgx >= commons.x0 && mgx <= commons.x1 &&
+                  mgy >= commons.y0 && mgy <= commons.y1) ok = false;
+            }
+            for (var cj = 0; cj < n && ok; cj++) {
+              if (cj !== ci && !clearOf(pc, placed[cj])) ok = false;
+            }
+            if (ok) { movedAny = true; break; }
+            pc.ox = oldX; pc.oy = oldY;
+          }
+        }
+        if (!movedAny) break;
+      }
+      // Crop the sheet to its content (playable cells + commons), with a
+      // rough apron: dense layouts shouldn't float in an empty border.
+      var bx0 = commons.x0, bx1 = commons.x1, by0 = commons.y0, by1 = commons.y1;
+      placed.forEach(function (p) {
+        playableMask(p).forEach(function (q) {
+          var gx = p.ox + q[0], gy = p.oy + q[1];
+          if (gx < bx0) bx0 = gx; if (gx > bx1) bx1 = gx;
+          if (gy < by0) by0 = gy; if (gy > by1) by1 = gy;
+        });
       });
+      var PADC = 5;
+      var shiftX = PADC - bx0, shiftY = PADC - by0;
+      placed.forEach(function (p) {
+        p.ox += shiftX; p.oy += shiftY;
+        p.home = [p.home[0] + shiftX, p.home[1] + shiftY];
+      });
+      commons.x0 += shiftX; commons.x1 += shiftX;
+      commons.y0 += shiftY; commons.y1 += shiftY;
+      gw = bx1 + shiftX + PADC + 1;
+      gh = by1 + shiftY + PADC + 1;
+    }
+
+    // Blit the placed holes onto the shared grid.
+    function buildComp() {
+      var cells = new Array(gw * gh).fill(ROUGH);
+      var slope = new Array(gw * gh).fill(-1);
+      var owner = new Array(gw * gh).fill(0);
+      // region/regionLoc map every grid cell in a hole's footprint back
+      // to that hole and its local cell index (see decorateSheet).
+      var region = new Array(gw * gh).fill(0);
+      var regionLoc = new Array(gw * gh).fill(-1);
+      var placements = [];
+      for (var idx = 0; idx < n; idx++) {
+        var p = placed[idx], it = p.it, h = it.hole, fp = it.fp, rot = p.rot;
+        for (var y = fp.y0; y <= fp.y1; y++) {
+          for (var x = fp.x0; x <= fp.x1; x++) {
+            var sk = y * W + x, t = h.cells[sk], sl = h.slope[sk];
+            var g = gpoint(p.ox, p.oy, fp, it.fw, it.fh, rot, x, y), gk = g[1] * gw + g[0];
+            region[gk] = idx + 1;
+            regionLoc[gk] = sk;
+            if (t === ROUGH && sl < 0) continue; // rough is the background
+            if (t !== ROUGH) cells[gk] = t;
+            if (sl >= 0) slope[gk] = rotDir(sl, rot);
+            owner[gk] = idx + 1;
+          }
+        }
+        var tee = gpoint(p.ox, p.oy, fp, it.fw, it.fh, rot, h.tee.x, h.tee.y);
+        var cup = gpoint(p.ox, p.oy, fp, it.fw, it.fh, rot, h.hole.x, h.hole.y);
+        var won = h.wonder ? gpoint(p.ox, p.oy, fp, it.fw, it.fh, rot, h.wonder.x, h.wonder.y) : null;
+        placements.push({
+          hole: h, num: idx + 1, rot: rot,
+          ox: p.ox, oy: p.oy, fp: fp, fw: it.fw, fh: it.fh,
+          tee: { x: tee[0], y: tee[1] },
+          cup: { x: cup[0], y: cup[1] },
+          wind: rotDir(h.wind, rot), windStr: h.windStr,
+          wonder: won ? { key: h.wonder.key, x: won[0], y: won[1] } : null
+        });
+      }
+      return {
+        w: gw, h: gh, cells: cells, slope: slope, owner: owner,
+        region: region, regionLoc: regionLoc, placements: placements,
+        commons: commons
+      };
+    }
+
+    var comp = buildComp();
+    // Compaction puts other holes' terrain inside this hole's solved
+    // frame, which can (rarely) change how the hole plays as printed.
+    // Any hole outside the 3-6 gate steps back toward its original
+    // spot; if the sheet still won't validate, redo without compaction.
+    if (commons && opts.compact !== false) {
+      var healthy = false;
+      for (var fix = 0; fix < 3 * n; fix++) {
+        var printed = validateSheet(comp);
+        var badIdx = -1;
+        for (var vi = 0; vi < printed.length; vi++) {
+          if (printed[vi] === null || printed[vi] < 3 || printed[vi] > 6) { badIdx = vi; break; }
+        }
+        if (badIdx < 0) { healthy = true; break; }
+        var bp = placed[badIdx];
+        var bw2 = (bp.rot % 2 ? bp.it.fh : bp.it.fw), bh2 = (bp.rot % 2 ? bp.it.fw : bp.it.fh);
+        var tx = Math.max(1, Math.min(gw - bw2 - 1, bp.home[0]));
+        var ty = Math.max(1, Math.min(gh - bh2 - 1, bp.home[1]));
+        if (bp.ox === tx && bp.oy === ty) break; // already home: bail out
+        bp.ox += Math.sign(tx - bp.ox) * Math.min(2, Math.abs(tx - bp.ox));
+        bp.oy += Math.sign(ty - bp.oy) * Math.min(2, Math.abs(ty - bp.oy));
+        comp = buildComp();
+      }
+      if (!healthy) {
+        var printed2 = validateSheet(comp);
+        var stillBad = printed2.some(function (b) { return b === null || b < 3 || b > 6; });
+        if (stillBad) {
+          return packSheet(holes, { margin: margin, aspect: target, compact: false });
+        }
+      }
+    }
+    return comp;
+  }
+
+  // Read a placed hole's full W×H frame back out of the finished sheet,
+  // exactly as a player will see it printed: neighbouring holes' terrain
+  // and any planted decoration appear where the local frame had plain
+  // rough, and off-sheet cells count as trees (unreachable). Slopes and
+  // wind rotate back into the hole's own orientation.
+  function extractFrame(comp, pl) {
+    var cells = new Array(W * H).fill(TREE);
+    var slope = new Array(W * H).fill(-1);
+    var back = (4 - pl.rot) % 4;
+    for (var y = 0; y < H; y++) {
+      for (var x = 0; x < W; x++) {
+        var g = gpoint(pl.ox, pl.oy, pl.fp, pl.fw, pl.fh, pl.rot, x, y);
+        if (g[0] < 0 || g[0] >= comp.w || g[1] < 0 || g[1] >= comp.h) continue;
+        var gk = g[1] * comp.w + g[0];
+        cells[y * W + x] = comp.cells[gk];
+        slope[y * W + x] = rotDir(comp.slope[gk], back);
+      }
     }
     return {
-      w: gw, h: gh, cells: cells, slope: slope, owner: owner,
-      region: region, regionLoc: regionLoc, placements: placements,
-      commons: commons
+      w: W, h: H, cells: cells, slope: slope,
+      tee: pl.hole.tee, hole: pl.hole.hole,
+      wind: pl.hole.wind, windStr: pl.hole.windStr
     };
+  }
+
+  // Solve every placed hole as printed. Returns per-hole optimal stroke
+  // counts (null = unsolvable); a sheet is good when all fall in 3–6.
+  function validateSheet(comp) {
+    return comp.placements.map(function (pl) {
+      return solve(extractFrame(comp, pl));
+    });
   }
 
   // Cells of one large landscape feature. With a ring-layout commons the
@@ -1126,18 +1295,23 @@
     return out;
   }
 
-  // Add one large water feature (river or lake) spanning a packed sheet.
-  // It only ever floods *rough* cells (never a fairway, green, bunker,
-  // tree or existing water), and every hole it touches is re-solved with
-  // the added water: if a hole would break the 3–6 stroke gate, its water
-  // is reverted, so the sheet stays fully playable. Mutates comp in
-  // place and records comp.feature. Deterministic (seeded rng).
+  // Dress a packed sheet like a golf-course map: one large water feature
+  // (river or lake, sized to the commons), then connective forest —
+  // seeded tree blobs across the background rough so neighbouring holes
+  // share tree lines the way real course maps do. Decoration only ever
+  // replaces plain rough (never fairway/green/sand/water/slopes or a
+  // wonder cell). Afterwards every hole is re-solved AS PRINTED via
+  // extractFrame; while any hole falls outside the 3–6 gate, the
+  // decoration inside that hole's frame is stripped and the check
+  // repeats — so the sheet is playable by construction. Deterministic.
   function decorateSheet(comp, opts) {
     opts = opts || {};
     var rng = opts.rng || mulberry32(1);
     var themeKey = opts.themeKey || 'classic';
-    var chance = opts.chance == null ? 0.85 : opts.chance;
-    if (rng() >= chance) return comp;
+    // A ring sheet reserves its commons FOR the feature — always fill
+    // it. Featureless sheets only happen in the gridded fallback.
+    var chance = opts.chance == null ? (comp.commons ? 1 : 0.85) : opts.chance;
+    var wantFeature = rng() < chance;
 
     // theme flavour: lakeside leans river, dunes an oasis lake, else mixed
     var kind = opts.kind;
@@ -1152,32 +1326,82 @@
     comp.placements.forEach(function (p) {
       if (p.wonder) wonderKeys[p.wonder.y * comp.w + p.wonder.x] = 1;
     });
+    function paintable(gk) {
+      return comp.cells[gk] === ROUGH && comp.slope[gk] < 0 && !wonderKeys[gk];
+    }
 
-    var cand = featureCells(comp, rng, kind).filter(function (gk) {
-      return comp.cells[gk] === ROUGH && !wonderKeys[gk];
-    });
+    var painted = []; // gk of every decorated cell, for validated pruning
 
-    // group by owning hole; background (region 0) is always safe
-    var byHole = {};
-    cand.forEach(function (gk) {
-      var hi = comp.region[gk];
-      (byHole[hi] = byHole[hi] || []).push(gk);
-    });
-    var paint = [];
-    Object.keys(byHole).forEach(function (hiStr) {
-      var hi = +hiStr, group = byHole[hi];
-      if (hi === 0) { paint = paint.concat(group); return; }
-      var src = comp.placements[hi - 1].hole;
-      var local = src.cells.slice();
-      group.forEach(function (gk) { local[comp.regionLoc[gk]] = WATER; });
-      var best = solve({
-        w: W, h: H, cells: local, slope: src.slope,
-        tee: src.tee, hole: src.hole, wind: src.wind, windStr: src.windStr
+    // 1. the big water feature
+    if (wantFeature) {
+      featureCells(comp, rng, kind).forEach(function (gk) {
+        if (!paintable(gk)) return;
+        comp.cells[gk] = WATER;
+        painted.push(gk);
       });
-      if (best !== null && best <= 6) paint = paint.concat(group); // safe
-    });
-    paint.forEach(function (gk) { comp.cells[gk] = WATER; });
-    comp.feature = kind;
+      comp.feature = kind;
+    }
+
+    // 2. connective forest: tree blobs scattered over background rough
+    // (outside the commons so the lake shore stays open), denser on
+    // woodsy themes. Blobs grow orthogonally like all our terrain.
+    var density = themeKey === 'forest' ? 2.2 : themeKey === 'dunes' ? 0.7 :
+                  themeKey === 'highlands' ? 1.0 : 1.4;
+    var nBlobs = Math.round(comp.w * comp.h / 240 * density);
+    // A lake needs its commons open; a river only claims a band through
+    // it, so the woods may take the rest of the middle.
+    var protectCommons = wantFeature && kind === 'lake';
+    function inCommons(gx, gy) {
+      var c = comp.commons;
+      return protectCommons && c && gx >= c.x0 && gx <= c.x1 && gy >= c.y0 && gy <= c.y1;
+    }
+    for (var b = 0; b < nBlobs; b++) {
+      var sx = 1 + ri(rng, comp.w - 2), sy = 1 + ri(rng, comp.h - 2);
+      var size = 3 + ri(rng, 9);
+      var members = [];
+      var seen = {};
+      function tryAdd(gx, gy) {
+        if (gx < 1 || gx >= comp.w - 1 || gy < 1 || gy >= comp.h - 1) return false;
+        var gk = gy * comp.w + gx;
+        if (seen[gk] || !paintable(gk) || inCommons(gx, gy)) return false;
+        seen[gk] = true;
+        comp.cells[gk] = TREE;
+        members.push([gx, gy]);
+        painted.push(gk);
+        return true;
+      }
+      if (!tryAdd(sx, sy)) continue;
+      var guard = size * 20;
+      while (members.length < size && guard-- > 0) {
+        var from = pick(rng, members);
+        var d = DIRS[ri(rng, 4)];
+        tryAdd(from[0] + d[0], from[1] + d[1]);
+      }
+    }
+
+    // 3. as-printed safety: strip decoration from any hole whose printed
+    // frame no longer solves inside the gate, until the sheet is clean.
+    for (var pass = 0; pass < comp.placements.length + 2; pass++) {
+      var printed = validateSheet(comp);
+      var bad = null;
+      for (var i = 0; i < printed.length; i++) {
+        if (printed[i] === null || printed[i] < 3 || printed[i] > 6) { bad = comp.placements[i]; break; }
+      }
+      if (!bad) break;
+      // frame rect of the offending hole on the sheet
+      var c1 = gpoint(bad.ox, bad.oy, bad.fp, bad.fw, bad.fh, bad.rot, 0, 0);
+      var c2 = gpoint(bad.ox, bad.oy, bad.fp, bad.fw, bad.fh, bad.rot, W - 1, H - 1);
+      var fx0 = Math.min(c1[0], c2[0]), fx1 = Math.max(c1[0], c2[0]);
+      var fy0 = Math.min(c1[1], c2[1]), fy1 = Math.max(c1[1], c2[1]);
+      painted = painted.filter(function (gk) {
+        var gx = gk % comp.w, gy = (gk - gx) / comp.w;
+        if (gx >= fx0 && gx <= fx1 && gy >= fy0 && gy <= fy1) {
+          comp.cells[gk] = ROUGH;
+          return false;
+        }
+        return true;
+      });
+    }
     return comp;
   }
 
@@ -1192,6 +1416,8 @@
     generateHole: generateHole,
     composeSheet: composeSheet,
     packSheet: packSheet,
+    extractFrame: extractFrame,
+    validateSheet: validateSheet,
     decorateSheet: decorateSheet,
     rotDir: rotDir,
     rotPt: rotPt,

@@ -823,6 +823,38 @@ function renderHoleSVG(hole) {
 // One continuous grid holding several holes (see composeSheet). Same
 // terrain/dot/glyph passes as a single hole, then each placed hole's
 // tee, cup, number badge and wind arrow on top.
+// The organic course silhouette: cells that carry content (hole
+// regions, any terrain, slopes, the commons) dilated a few cells into
+// the surrounding rough. Dots and grass render only inside it, so the
+// sheet reads as a course map with an irregular boundary, not a
+// rectangle of dots.
+function courseMask(comp, radius) {
+  var w = comp.w, h = comp.h;
+  var mask = new Array(w * h).fill(false);
+  for (var k = 0; k < w * h; k++) {
+    if (comp.region[k] > 0 || comp.cells[k] !== G.ROUGH || comp.slope[k] >= 0) mask[k] = true;
+  }
+  if (comp.commons) {
+    for (var yy = comp.commons.y0; yy <= comp.commons.y1; yy++) {
+      for (var xx = comp.commons.x0; xx <= comp.commons.x1; xx++) mask[yy * w + xx] = true;
+    }
+  }
+  for (var r = 0; r < radius; r++) {
+    var next = mask.slice();
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        if (mask[y * w + x]) continue;
+        for (var d = 0; d < 8 && !next[y * w + x]; d++) {
+          var nx = x + G.DIRS[d][0], ny = y + G.DIRS[d][1];
+          if (nx >= 0 && nx < w && ny >= 0 && ny < h && mask[ny * w + nx]) next[y * w + x] = true;
+        }
+      }
+    }
+    mask = next;
+  }
+  return mask;
+}
+
 function renderCompositeSVG(comp, treeStyle) {
   var wpx = comp.w * U + PAD * 2;
   var hpx = comp.h * U + PAD * 2;
@@ -830,7 +862,15 @@ function renderCompositeSVG(comp, treeStyle) {
   var pat = terrainPatterns();
   s += pat.defs;
 
-  s += terrainLayer(comp, G.ROUGH, pat.rough);
+  var mask = courseMask(comp, 3);
+  // grass texture only inside the course silhouette: give out-of-mask
+  // rough a sentinel value so the terrain layers skip it
+  var masked = { w: comp.w, h: comp.h, cells: comp.cells.slice() };
+  for (var mk = 0; mk < masked.cells.length; mk++) {
+    if (!mask[mk] && masked.cells[mk] === G.ROUGH) masked.cells[mk] = -1;
+  }
+
+  s += terrainLayer(masked, G.ROUGH, pat.rough);
   s += terrainLayer(comp, G.TREE, pat.rough);
   s += terrainLayer(comp, G.FAIRWAY, 'var(--fairway, #e4e7e5)');
   s += terrainLayer(comp, G.GREEN, '#c9d2cc');
@@ -840,9 +880,11 @@ function renderCompositeSVG(comp, treeStyle) {
   var gray = '', white = '';
   for (var y = 0; y < comp.h; y++) {
     for (var x = 0; x < comp.w; x++) {
-      var t = comp.cells[y * comp.w + x];
+      var k = y * comp.w + x;
+      if (!mask[k]) continue;
+      var t = comp.cells[k];
       if (t === G.TREE) continue;
-      if (comp.slope[y * comp.w + x] >= 0) continue;
+      if (comp.slope[k] >= 0) continue;
       var dot = '<circle cx="' + cx(x) + '" cy="' + cy(y) + '" r="1.7"/>';
       if (t === G.WATER) white += dot; else gray += dot;
     }

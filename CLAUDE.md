@@ -45,23 +45,27 @@ plain HTML/CSS/JS served as static files.
 - **Browser + Node**: `golf.js` must keep working in both environments.
 - **Print layout**: the printable sheets must stay intact — play mode
   hides them on screen but `@media print` shows them again, so a user
-  can print while playing. Three layouts (`layout` param): `sheet`
-  (4-up), `single` (one card per page), `booklet` (6×8 grid of cards),
-  `continuous` (6×8 pad = 6 holes, Letter/A4 = 9, packed onto one shared grid via
-  `packSheet` — tight per-hole footprints skyline-packed with 90°
-  a rough gutter, turned on their side (landscape) and laid in a 2×3
-  grid that fills the portrait page, walked boustrophedon (L→R then R→L)
-  so each cup ends near the next tee; still rigid placement of
-  self-solved holes, so solvability is preserved and no two holes'
-  playable cells touch, both tested). Five-plus holes ring a central
-  commons block; decorateSheet() then floods one big water feature
-  there (a commons-filling lake or a wide river through it) — only over rough,
-  re-solving every hole it touches and reverting water that would break
-  the 3-6 gate, so the sheet stays playable; each sets its own `@page` size.
-  Holes now flow vertically or diagonally (tee/cup placement in
-  `buildHoleAttempt`), not just top-to-bottom. The
-  `players` param (1/2) adds P1/P2 to the scorecard and booklet footer
-  — printed sheets only, on-screen play stays single-player.
+  can print while playing. Four layouts (`layout` param), each setting
+  its own `@page` size: `sheet` (4-up quarters), `single` (one card per
+  page), `booklet` (6×8 grid of cards), and `continuous` — several holes
+  (6 on a 6×8 pad, 9 on Letter/A4) composed onto one shared dot grid by
+  `packSheet()`: tight per-hole footprints placed rigidly (translate +
+  90°-multiple rotation of self-solved holes, so solvability transfers),
+  ringed around a central commons block and compacted toward it until
+  2-cell clearance, routed so each cup ends near the next tee.
+  decorateSheet() then dresses the sheet like a course map: one big
+  water feature (a commons-filling lake, or a wide river — woods take
+  the leftover commons) plus connective forest blobs across the
+  background rough. Decoration only replaces plain rough, and
+  validateSheet() re-solves every hole AS PRINTED via extractFrame()
+  (neighbours' terrain and decoration included), stripping decoration
+  from any frame that breaks the 3–6 gate — playable by construction,
+  and tested. The renderer clips dots to a dilated content mask so the
+  course has an organic outline. Holes flow vertically or diagonally
+  (tee/cup placement in `buildHoleAttempt`), not just top-to-bottom.
+  The `players` param (1/2) adds P1/P2 to the scorecard, hole cards,
+  and booklet footer — printed sheets only, on-screen play stays
+  single-player.
 - **Mobile**: play mode is touch-first — keep tap targets generous and
   the roll controls pinned to the bottom on narrow screens.
 
