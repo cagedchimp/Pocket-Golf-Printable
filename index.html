@@ -140,6 +140,10 @@
   .sheet.booklet.cover .score-card .score-tables,
   .sheet.booklet.cover .score-card .players { max-width: 6.2in; width: 100%; margin-left: auto; margin-right: auto; }
 
+  /* Blank verso behind the course-map cover (duplex-print spacer). */
+  .sheet.booklet.blank { display: flex; align-items: center; justify-content: center; }
+  .sheet.booklet.blank .blank-note { font-size: 11px; opacity: .45; letter-spacing: .06em; text-align: center; padding: 0 1in; }
+
   .booklet-foot {
     display: flex; align-items: center; gap: 10px;
     border-top: 1.5px solid var(--ink);
@@ -458,6 +462,7 @@
       break-after: page;
     }
     .sheet:last-child { break-after: auto; }
+    .sheet.booklet.blank .blank-note { display: none; }
   }
 </style>
 <style id="page-size">@page { size: letter; margin: 0; }</style>
@@ -1124,6 +1129,14 @@ function buildContinuous(sheets, course, players, dimsOverride) {
     cover.appendChild(titleCard(course, players));
     cover.appendChild(scoreCard(course, players));
     sheets.appendChild(cover);
+    // A blank verso behind the cover keeps duplex prints pairing the
+    // map pages back-to-back. The note only shows on screen.
+    var blank = document.createElement('div');
+    blank.className = 'sheet booklet blank';
+    blank.style.width = dims.w;
+    blank.style.height = dims.h;
+    blank.innerHTML = '<div class="blank-note">This page is intentionally blank so double-sided prints pair the map pages.</div>';
+    sheets.appendChild(blank);
   } else {
     sheets.appendChild(solo(titleCard(course, players)));
   }
