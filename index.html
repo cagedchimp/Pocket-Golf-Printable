@@ -347,7 +347,7 @@
   @media (max-width: 640px) {
     .controls { padding: 10px 12px; gap: 8px; }
     .controls h1 { flex-basis: 100%; margin: 0; }
-    #play { padding-bottom: 160px; }
+    #play { padding-bottom: 260px; }
     .play-board { max-width: 100%; }
     .play-board svg { max-height: 62dvh; }
     .play-actions button { flex: 1 1 auto; }
@@ -1187,6 +1187,25 @@ function updateHUD() {
 el('play-toggle').addEventListener('click', function () {
   if (play) exitPlay(); else startPlay();
 });
+
+// On phones the actions card is pinned over the bottom of the screen
+// and its height varies (club row, message length), so pad the play
+// area to its measured height — otherwise the last card (the legend)
+// hides underneath it.
+(function () {
+  var mq = window.matchMedia('(max-width: 640px)');
+  function fitActionsCard() {
+    var playEl = document.getElementById('play');
+    if (!mq.matches) { playEl.style.paddingBottom = ''; return; }
+    var card = document.querySelector('.play-card.actions');
+    playEl.style.paddingBottom = (card.offsetHeight + 28) + 'px';
+  }
+  if (window.ResizeObserver) {
+    new ResizeObserver(fitActionsCard).observe(document.querySelector('.play-card.actions'));
+  }
+  window.addEventListener('resize', fitActionsCard);
+  fitActionsCard();
+})();
 el('p-clubs').addEventListener('click', function (evt) {
   var club = evt.target.getAttribute && evt.target.getAttribute('data-club');
   if (!club || !play || play.over || play.moves) return;
