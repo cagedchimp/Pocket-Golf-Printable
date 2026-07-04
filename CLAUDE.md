@@ -55,7 +55,15 @@ Straight-line moves in 8 directions, distance = d6 roll. Fairway +1 and
 may fly over trees; sand −1; rough/green exact; water and trees can be
 flown over but never landed on; slope arrows carry the ball after
 landing; a putt (1 space, or 1–2 on the green) is always allowed instead
-of the roll. Par 6 every hole; mulligans per course come from the
+of the roll. **Clubs** (declared before rolling, `movesForRoll`'s club
+arg): driver +1 but only from tee/fairway, iron exact, wedge = half the
+roll rounded up, lofted (over trees from anywhere, immune to wind, no
+sand penalty). **Wind** (`hole.wind` direction, `hole.windStr` 1–2,
+drawn from a separate RNG stream so hole layouts stay untouched):
+shots of 4+ spaces drift one space downwind per strength point after
+landing — never into water/trees/off-grid, holed balls stay holed;
+wind is kept on a hole only if the wind-aware `solve()` still fits the
+difficulty's stroke gate. Par 6 every hole; mulligans per course come from the
 difficulty tier (Casual 8 / Standard 6 / Tough 4). Difficulty also
 gates each hole's optimal stroke count (Casual exactly 3, Tough 4-6),
 scales hazard density, and on Tough adds greenside moats, island

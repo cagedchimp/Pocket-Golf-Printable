@@ -50,6 +50,8 @@ dependencies.
   (fairway +1, sand −1), dashed rings are putts. Slopes carry the ball
   after it lands, mulligans re-roll the die, spotting the course's
   hidden wonder earns a free one, and a scorecard tracks the round.
+  Declare a club before each roll — driver (+1, tee/fairway only),
+  iron, or wedge (half roll, flies over trees, ignores wind and sand).
   Works great on phones — the roll controls stay pinned to the bottom
   of the screen. Add
   `&play=1` to a shared course URL to send someone straight into a
@@ -83,6 +85,9 @@ line of play.
 
 You may always putt (move 1) instead of your roll. 6 mulligans
 (re-rolls) per course — tick them off on the title page. Rumor has it
+Windy holes (arrows by the hole number — one space of drift per
+arrow) push shots of 4+ spaces downwind after they land, so aim
+upwind or loft a wedge. Rumor has it
 a *wonder* hides on one hole in about a third of courses — usually
 Bigfoot's footprints or a garden gnome, but sometimes an old castle, a
 UFO, or (only on lakeside courses, and rarely even there) the kraken
