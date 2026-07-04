@@ -54,16 +54,16 @@ plain HTML/CSS/JS served as static files.
   (6 on a 6×8 pad, 9 on Letter/A4) composed onto one shared dot grid by
   `packSheet()`: tight per-hole footprints placed rigidly (translate +
   90°-multiple rotation of self-solved holes, so solvability transfers),
-  ringed around a central commons block, compacted toward it, then
-  interlaced — each hole pulls toward its route-predecessor until only
-  a 1-cell rough seam separates playable cells (the invariant), and
-  decoration turns those seams into the tree lines between fairways.
-  Routed so each cup ends near the next tee.
-  decorateSheet() then dresses the sheet like a course map: one big
-  water feature (usually an organic-shoreline lake sized to the
-  commons; sometimes a wide river) plus connective forest blobs across
-  the background rough, and a fill pass that plants forest over any
-  leftover commons rough so the middle is never hollow (tested). Decoration only replaces plain rough, and
+  seeded as an aspect-matched boustrophedon grid, then compacted
+  toward the sheet centre and interlaced — each hole pulls toward its
+  route-predecessor until only a 1-cell rough seam separates playable
+  cells (the invariant) — into an organic cluster with no reserved
+  centerpiece. Routed so each cup ends near the next tee.
+  decorateSheet() then dresses the sheet like a course map: seam tree
+  lines where holes nearly touch, a free-roaming organic-shoreline
+  lake or river, connective forest blobs, and a fill pass that plants
+  forest over leftover interior rough so no big bare patches survive
+  (tested). Decoration only replaces plain rough, and
   validateSheet() re-solves every hole AS PRINTED via extractFrame()
   (neighbours' terrain and decoration included), stripping decoration
   from any frame that breaks the 3–6 gate — playable by construction,
