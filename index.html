@@ -108,6 +108,17 @@
     padding: 0.28in 0.30in 0.24in;
   }
 
+  /* single-card layout: each quarter is its own pocket-size page
+     (quarter-letter, or A6 on A4 paper) — handy for PDF export */
+  .sheet.card-page {
+    width: 4.25in;
+    height: 5.5in;
+    display: block;
+  }
+  body.a4 .sheet.card-page { width: 105mm; height: 148mm; }
+  .sheet.card-page::before, .sheet.card-page::after { display: none; }
+  .sheet.card-page .quarter { width: 100%; height: 100%; }
+
   /* ------------------------------ hole card ------------------------ */
   .hole-card svg { flex: 1; width: 100%; height: 0; min-height: 0; }
 
@@ -397,6 +408,11 @@
   <select id="paper">
     <option value="letter" selected>Letter</option>
     <option value="a4">A4</option>
+  </select>
+  <label for="layout">Layout</label>
+  <select id="layout">
+    <option value="sheet" selected>4-up sheet</option>
+    <option value="single">Single cards</option>
   </select>
   <span class="spacer"></span>
   <button id="play-toggle">▶ Play</button>
@@ -1261,6 +1277,7 @@ function syncURL() {
   params.set('theme', document.getElementById('theme').value);
   params.set('diff', document.getElementById('diff').value);
   params.set('holes', document.getElementById('holes').value);
+  if (document.getElementById('layout').value === 'single') params.set('layout', 'single');
   if (play) params.set('play', '1');
   history.replaceState(null, '', '?' + params.toString());
 }
@@ -1278,13 +1295,23 @@ function rebuild() {
 
   var sheets = document.getElementById('sheets');
   sheets.innerHTML = '';
-  for (var i = 0; i < quarters.length; i += 4) {
-    var sheet = document.createElement('div');
-    sheet.className = 'sheet';
-    for (var j = i; j < i + 4; j++) {
-      sheet.appendChild(quarters[j] || Object.assign(document.createElement('div'), { className: 'quarter' }));
+  if (document.getElementById('layout').value === 'single') {
+    // one pocket-size page per card — print to PDF for a card deck
+    quarters.forEach(function (q) {
+      var sheet = document.createElement('div');
+      sheet.className = 'sheet card-page';
+      sheet.appendChild(q);
+      sheets.appendChild(sheet);
+    });
+  } else {
+    for (var i = 0; i < quarters.length; i += 4) {
+      var sheet = document.createElement('div');
+      sheet.className = 'sheet';
+      for (var j = i; j < i + 4; j++) {
+        sheet.appendChild(quarters[j] || Object.assign(document.createElement('div'), { className: 'quarter' }));
+      }
+      sheets.appendChild(sheet);
     }
-    sheets.appendChild(sheet);
   }
 
   // A new course invalidates any round in progress — restart it.
@@ -1328,11 +1355,18 @@ document.getElementById('seed').addEventListener('change', rebuild);
 document.getElementById('theme').addEventListener('change', rebuild);
 document.getElementById('diff').addEventListener('change', rebuild);
 document.getElementById('holes').addEventListener('change', rebuild);
-document.getElementById('paper').addEventListener('change', function (e) {
-  var a4 = e.target.value === 'a4';
+function updatePageSize() {
+  var a4 = document.getElementById('paper').value === 'a4';
+  var single = document.getElementById('layout').value === 'single';
   document.body.classList.toggle('a4', a4);
+  var size = single ? (a4 ? '105mm 148mm' : '4.25in 5.5in') : (a4 ? 'A4' : 'letter');
   document.getElementById('page-size').textContent =
-    '@page { size: ' + (a4 ? 'A4' : 'letter') + '; margin: 0; }';
+    '@page { size: ' + size + '; margin: 0; }';
+}
+document.getElementById('paper').addEventListener('change', updatePageSize);
+document.getElementById('layout').addEventListener('change', function () {
+  updatePageSize();
+  rebuild();
 });
 document.getElementById('print').addEventListener('click', function () { window.print(); });
 
@@ -1346,6 +1380,10 @@ if (bootParams.get('diff') && G.DIFFICULTIES[bootParams.get('diff')]) {
   document.getElementById('diff').value = bootParams.get('diff');
 }
 if (bootParams.get('holes') === '9') document.getElementById('holes').value = '9';
+if (bootParams.get('layout') === 'single') {
+  document.getElementById('layout').value = 'single';
+  updatePageSize();
+}
 rebuild();
 // ?play=1 deep-links straight into a round of the shared course.
 if (bootParams.get('play') === '1') startPlay();
