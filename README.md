@@ -84,8 +84,9 @@ terrain legend) → one hole per quarter page → a scorecard.
 
 Roll a d6 and move that many dots in a straight line, in any of the 8
 directions. Draw the line, mark the ball. Each hole carries its own
-par — the measured perfect line plus two — printed on its card and on
-the scorecard, so tough holes are worth more strokes.
+par — the measured perfect line plus two, stretched a stroke either
+way by hole length like real golf — printed on its card and on the
+scorecard. Casual courses run par 4–6 holes; Tough runs 5–9.
 
 | Terrain | Effect |
 | --- | --- |
