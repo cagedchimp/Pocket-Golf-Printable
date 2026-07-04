@@ -57,9 +57,10 @@ plain HTML/CSS/JS served as static files.
   ringed around a central commons block and compacted toward it until
   2-cell clearance, routed so each cup ends near the next tee.
   decorateSheet() then dresses the sheet like a course map: one big
-  water feature (a commons-filling lake, or a wide river — woods take
-  the leftover commons) plus connective forest blobs across the
-  background rough. Decoration only replaces plain rough, and
+  water feature (usually an organic-shoreline lake sized to the
+  commons; sometimes a wide river) plus connective forest blobs across
+  the background rough, and a fill pass that plants forest over any
+  leftover commons rough so the middle is never hollow (tested). Decoration only replaces plain rough, and
   validateSheet() re-solves every hole AS PRINTED via extractFrame()
   (neighbours' terrain and decoration included), stripping decoration
   from any frame that breaks the 3–6 gate — playable by construction,

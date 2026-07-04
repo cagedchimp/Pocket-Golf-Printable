@@ -1283,23 +1283,31 @@
       if (com) {
         lcx = Math.round((com.x0 + com.x1) / 2) + ri(rng, 3) - 1;
         lcy = Math.round((com.y0 + com.y1) / 2) + ri(rng, 3) - 1;
-        rx = Math.round((com.x1 - com.x0) / 2) + 2 + ri(rng, 3);
-        ry = Math.round((com.y1 - com.y0) / 2) + 2 + ri(rng, 3);
+        rx = Math.round((com.x1 - com.x0) / 2) + 3 + ri(rng, 3);
+        ry = Math.round((com.y1 - com.y0) / 2) + 3 + ri(rng, 3);
       } else {
         lcx = 3 + ri(rng, gw - 6); lcy = 3 + ri(rng, gh - 6);
         rx = 4 + ri(rng, 4); ry = 4 + ri(rng, 4);
       }
-      for (var y = Math.max(0, lcy - ry); y <= Math.min(gh - 1, lcy + ry); y++) {
-        for (var x = Math.max(0, lcx - rx); x <= Math.min(gw - 1, lcx + rx); x++) {
+      // organic shoreline: the radius wobbles around the ellipse with a
+      // couple of seeded sine harmonics — bays and headlands, not a
+      // geometric oval
+      var ph1 = rng() * 6.283, ph2 = rng() * 6.283;
+      var k1 = 0.12 + 0.10 * rng(), k2 = 0.07 + 0.08 * rng();
+      var span = Math.max(rx, ry) + 3;
+      for (var y = Math.max(0, lcy - span); y <= Math.min(gh - 1, lcy + span); y++) {
+        for (var x = Math.max(0, lcx - span); x <= Math.min(gw - 1, lcx + span); x++) {
           var dx = (x - lcx) / rx, dy = (y - lcy) / ry;
-          if (dx * dx + dy * dy <= 1) out.push(y * gw + x);
+          var ang = Math.atan2(dy, dx);
+          var rr = 1 + k1 * Math.sin(3 * ang + ph1) + k2 * Math.sin(5 * ang + ph2);
+          if (dx * dx + dy * dy <= rr * rr) out.push(y * gw + x);
         }
       }
       return out;
     }
-    // river: walk across, jittering perpendicular; wide (2-3 cells)
-    // through a commons, else the classic thin band
-    var wide = com ? 2 + ri(rng, 2) : 2;
+    // river: walk across, jittering perpendicular; properly wide
+    // (3-4 cells) through a commons, else the classic thin band
+    var wide = com ? 3 + ri(rng, 2) : 2;
     var horiz = rng() < 0.5;
     if (horiz) {
       var ry2 = com ? Math.round((com.y0 + com.y1) / 2) - 1 : 2 + ri(rng, gh - 4);
@@ -1344,9 +1352,9 @@
     // theme flavour: lakeside leans river, dunes an oasis lake, else mixed
     var kind = opts.kind;
     if (!kind) {
-      if (themeKey === 'lakeside') kind = rng() < 0.65 ? 'river' : 'lake';
-      else if (themeKey === 'dunes') kind = rng() < 0.7 ? 'lake' : 'river';
-      else kind = rng() < 0.55 ? 'river' : 'lake';
+      if (themeKey === 'lakeside') kind = rng() < 0.5 ? 'river' : 'lake';
+      else if (themeKey === 'dunes') kind = rng() < 0.85 ? 'lake' : 'river';
+      else kind = rng() < 0.7 ? 'lake' : 'river';
     }
 
     // wonder cells are off-limits (don't drown Bigfoot)
@@ -1371,39 +1379,59 @@
     }
 
     // 2. connective forest: tree blobs scattered over background rough
-    // (outside the commons so the lake shore stays open), denser on
-    // woodsy themes. Blobs grow orthogonally like all our terrain.
-    var density = themeKey === 'forest' ? 2.2 : themeKey === 'dunes' ? 0.7 :
-                  themeKey === 'highlands' ? 1.0 : 1.4;
-    var nBlobs = Math.round(comp.w * comp.h / 240 * density);
-    // A lake needs its commons open; a river only claims a band through
-    // it, so the woods may take the rest of the middle.
-    var protectCommons = wantFeature && kind === 'lake';
-    function inCommons(gx, gy) {
-      var c = comp.commons;
-      return protectCommons && c && gx >= c.x0 && gx <= c.x1 && gy >= c.y0 && gy <= c.y1;
-    }
-    for (var b = 0; b < nBlobs; b++) {
-      var sx = 1 + ri(rng, comp.w - 2), sy = 1 + ri(rng, comp.h - 2);
-      var size = 3 + ri(rng, 9);
+    // (the water feature is already painted, so blobs land on whatever
+    // rough is left — including leftover commons), denser on woodsy
+    // themes. Blobs grow orthogonally like all our terrain.
+    function treeBlob(sx, sy, size) {
       var members = [];
       var seen = {};
       function tryAdd(gx, gy) {
         if (gx < 1 || gx >= comp.w - 1 || gy < 1 || gy >= comp.h - 1) return false;
         var gk = gy * comp.w + gx;
-        if (seen[gk] || !paintable(gk) || inCommons(gx, gy)) return false;
+        if (seen[gk] || !paintable(gk)) return false;
         seen[gk] = true;
         comp.cells[gk] = TREE;
         members.push([gx, gy]);
         painted.push(gk);
         return true;
       }
-      if (!tryAdd(sx, sy)) continue;
+      if (!tryAdd(sx, sy)) return 0;
       var guard = size * 20;
       while (members.length < size && guard-- > 0) {
         var from = pick(rng, members);
         var d = DIRS[ri(rng, 4)];
         tryAdd(from[0] + d[0], from[1] + d[1]);
+      }
+      return members.length;
+    }
+    var density = themeKey === 'forest' ? 2.2 : themeKey === 'dunes' ? 0.7 :
+                  themeKey === 'highlands' ? 1.0 : 1.4;
+    var nBlobs = Math.round(comp.w * comp.h / 240 * density);
+    for (var b = 0; b < nBlobs; b++) {
+      treeBlob(1 + ri(rng, comp.w - 2), 1 + ri(rng, comp.h - 2), 3 + ri(rng, 9));
+    }
+
+    // 2b. no hollow middle, ever: whatever the feature left as plain
+    // rough inside the commons gets planted over with forest until at
+    // most a third of the commons is still bare.
+    if (comp.commons) {
+      var c = comp.commons;
+      var commonsCells = [];
+      for (var cyy = c.y0; cyy <= c.y1; cyy++) {
+        for (var cxx = c.x0; cxx <= c.x1; cxx++) commonsCells.push(cyy * comp.w + cxx);
+      }
+      function bareCommons() {
+        var bare = [];
+        for (var i = 0; i < commonsCells.length; i++) {
+          if (paintable(commonsCells[i])) bare.push(commonsCells[i]);
+        }
+        return bare;
+      }
+      for (var fillTry = 0; fillTry < 40; fillTry++) {
+        var bare = bareCommons();
+        if (bare.length <= commonsCells.length * 0.33) break;
+        var seedK = bare[ri(rng, bare.length)];
+        treeBlob(seedK % comp.w, Math.floor(seedK / comp.w), 5 + ri(rng, 10));
       }
     }
 
