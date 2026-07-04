@@ -313,11 +313,11 @@ playCourse.holes.forEach((h, i) => {
     const src = pl.hole;
     // extract the region back out and confirm it is byte-identical
     let match = true;
-    for (let y = 0; y < golf.H; y++) {
-      for (let x = 0; x < golf.W; x++) {
+    for (let y = 0; y < src.h; y++) {
+      for (let x = 0; x < src.w; x++) {
         const gk = (pl.oy + y) * sheet.w + (pl.ox + x);
-        if (sheet.cells[gk] !== src.cells[y * golf.W + x]) match = false;
-        if (sheet.slope[gk] !== src.slope[y * golf.W + x]) match = false;
+        if (sheet.cells[gk] !== src.cells[y * src.w + x]) match = false;
+        if (sheet.slope[gk] !== src.slope[y * src.w + x]) match = false;
       }
     }
     assert(match, `hole ${pl.num}: composed region differs from source`);
@@ -329,7 +329,7 @@ playCourse.holes.forEach((h, i) => {
   // no playable cell borders a *different* hole's playable cell
   function ownerAt(gx, gy) {
     for (const pl of sheet.placements) {
-      if (gx >= pl.ox && gx < pl.ox + golf.W && gy >= pl.oy && gy < pl.oy + golf.H) return pl.num;
+      if (gx >= pl.ox && gx < pl.ox + pl.hole.w && gy >= pl.oy && gy < pl.oy + pl.hole.h) return pl.num;
     }
     return 0; // gutter
   }
@@ -447,7 +447,7 @@ playCourse.holes.forEach((h, i) => {
     comp.placements.forEach(p => {
       const local = p.hole.cells.slice();
       (water[p.num] || []).forEach(li => { local[li] = golf.WATER; });
-      const best = golf.solve({ w: golf.W, h: golf.H, cells: local, slope: p.hole.slope,
+      const best = golf.solve({ w: p.hole.w, h: p.hole.h, cells: local, slope: p.hole.slope,
         tee: p.hole.tee, hole: p.hole.hole, wind: p.hole.wind, windStr: p.hole.windStr });
       assert(best !== null && best >= 3 && best <= 6,
         `deco-${s} hole ${p.num}: unsolvable after feature (best=${best})`);
