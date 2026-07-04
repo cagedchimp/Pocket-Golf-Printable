@@ -253,6 +253,22 @@
   }
   .play-stats b { font-size: 15px; }
 
+  .clubs { display: flex; gap: 6px; margin-bottom: 8px; }
+  .clubs button {
+    flex: 1;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 4px;
+    border: 1.5px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    background: #eef0ee;
+    color: var(--ink);
+  }
+  .clubs button.sel { border-color: var(--ink); background: var(--fairway); font-weight: 700; }
+  .clubs button:disabled { opacity: .4; cursor: default; }
+
   .play-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .play-actions button {
     font: inherit;
@@ -403,6 +419,11 @@
         </div>
       </div>
       <div class="play-card actions">
+        <div class="clubs" id="p-clubs">
+          <button data-club="driver" title="+1 distance — tee & fairway only">🚀 Driver</button>
+          <button data-club="iron" class="sel" title="Move exactly your swing">⛳ Iron</button>
+          <button data-club="wedge" title="Half roll, flies over trees, no wind">🪁 Wedge</button>
+        </div>
         <div class="play-actions">
           <button id="p-roll" class="primary">🎲 Roll</button>
           <span id="p-die"></span>
@@ -422,7 +443,14 @@
           Fairway adds +1 and lets you fly over trees; sand takes &minus;1; water and
           trees can be flown over but never landed on. A putt (1 space, or 1&ndash;2 on
           the green) is always allowed instead of the roll. Slope arrows carry the
-          ball after it lands. Par 6 every hole; mulligans re-roll the die.</p>
+          ball after it lands. Par 6 every hole; mulligans re-roll the die.<br><br>
+          <b>Clubs</b> (pick before rolling): Driver adds +1 but needs the tee or
+          fairway; Iron moves exactly your swing; Wedge moves half the roll
+          (rounded up), flies over trees from anywhere, and ignores wind and the
+          sand penalty.<br><br>
+          <b>Wind</b> (arrows by the hole number) pushes shots of 4+ spaces one
+          space downwind per arrow after landing &mdash; never into water or
+          trees, and never out of the cup.</p>
         </details>
       </div>
     </div>
@@ -645,13 +673,22 @@ function renderHoleSVG(hole) {
  *  Quarter-page cards                                                  *
  * ==================================================================== */
 
+// Arrow glyphs matching G.DIRS order; strength repeats the arrow
+// (one space of drift per arrow, like slopes).
+var WIND_ARROWS = ['→', '←', '↓', '↑', '↘', '↗', '↙', '↖'];
+function windLabel(hole) {
+  if (hole.wind < 0) return '';
+  return new Array((hole.windStr || 1) + 1).join(WIND_ARROWS[hole.wind]);
+}
+
 function holeCard(hole, num) {
   var div = document.createElement('div');
   div.className = 'quarter hole-card';
+  var wind = hole.wind >= 0 ? ' <span style="opacity:.65">· Wind ' + windLabel(hole) + '</span>' : '';
   div.innerHTML =
     renderHoleSVG(hole) +
     '<div class="hole-footer">' +
-    '<span>Hole ' + num + '</span>' +
+    '<span>Hole ' + num + wind + '</span>' +
     '<span>Strokes: <span class="blank"></span>&thinsp;/ 6</span>' +
     '<span>Total: <span class="blank wide"></span></span>' +
     '</div>';
@@ -672,6 +709,7 @@ function legendIcon(kind) {
     case 'water':   s += '<rect x="2" y="2" width="18" height="18" rx="5" fill="#79837d"/><circle cx="11" cy="11" r="1.6" fill="#fff"/>'; break;
     case 'tree':    s += '<path fill="#4a4f4d" d="M11 3 L18 15 L4 15 Z"/><rect x="10" y="15" width="2.4" height="4" fill="#4a4f4d"/>'; break;
     case 'slope':   s += '<g stroke="#8d938f" stroke-width="2.2" stroke-linecap="round" fill="none"><line x1="5" y1="11" x2="17" y2="11"/><polyline points="13,6.5 17,11 13,15.5"/></g>'; break;
+    case 'wind':    s += '<g stroke="#8d938f" stroke-width="1.8" stroke-linecap="round" fill="none"><path d="M3 8 h9 a2.2 2.2 0 1 0 -2.2 -3.4"/><path d="M3 14 h12 a2.2 2.2 0 1 1 -2.2 3.4"/></g>'; break;
     case 'tee':     s += '<circle cx="11" cy="11" r="5.5" fill="#3f4442"/>'; break;
     case 'cup':     s += '<circle cx="9" cy="17" r="3.4" fill="#fff" stroke="#3f4442" stroke-width="2.2"/><line x1="9" y1="14.5" x2="9" y2="3.5" stroke="#3f4442" stroke-width="2" stroke-linecap="round"/><path fill="#3f4442" d="M9 3.5 L18 7 L9 10.5 Z"/>'; break;
   }
@@ -692,7 +730,8 @@ function legendHTML() {
     '<div class="item">' + legendIcon('sand') + 'Sand (−1 roll)</div>' +
     '<div class="item">' + legendIcon('water') + 'Water (never land)</div>' +
     '<div class="item">' + legendIcon('tree') + 'Trees (block hits)</div>' +
-    '<div class="item">' + legendIcon('slope') + 'Slope (ball rolls)</div>';
+    '<div class="item">' + legendIcon('slope') + 'Slope (ball rolls)</div>' +
+    '<div class="item">' + legendIcon('wind') + 'Wind (4+ shots drift)</div>';
 }
 
 function titleCard(course) {
@@ -717,6 +756,10 @@ function titleCard(course) {
     '</div>' +
     '<div class="credit">Move 1&ndash;6 spaces (d6) in a straight line, 8 directions. Par 6 every hole.<br>' +
     'On the green, putts may move 1 or 2 spaces.<br>' +
+    'Declare a club before rolling &mdash; <b>Driver</b>: +1 space, tee &amp; fairway only &middot; ' +
+    '<b>Iron</b>: exactly as rolled &middot; <b>Wedge</b>: half the roll (rounded up), ' +
+    'flies over trees, ignores wind &amp; sand.<br>' +
+    'Wind (arrows by the hole number) pushes shots of 4+ spaces one space downwind per arrow.<br>' +
     'Inspired by Paper Apps&trade; GOLF by Tom Brinton.</div>';
   return div;
 }
@@ -794,7 +837,7 @@ function startPlay() {
     course: G.generateCourse(seed, parseInt(el('holes').value, 10), el('theme').value, el('diff').value),
     hi: 0, scores: [], wonderFound: null,
     ball: null, strokes: 0, roll: null, rollSwing: 0, moves: null,
-    segments: [], over: false
+    club: 'iron', segments: [], over: false
   };
   play.mulligans = play.course.mulligans;
   document.body.classList.add('playing');
@@ -820,13 +863,16 @@ function beginHole(i) {
   play.strokes = 0;
   play.roll = null;
   play.moves = null;
+  play.club = 'iron';
   play.segments = [];
   play.over = false;
   el('p-die').textContent = '';
   el('p-next').hidden = true;
   renderBoard();
-  setMsg('Roll the die, then tap a highlighted spot to hit the ball there. ' +
-    'Solid rings are your full shot; dashed rings are putts.');
+  setMsg('Pick a club, roll the die, then tap a highlighted spot to hit the ball there. ' +
+    'Solid rings are your full shot; dashed rings are putts.' +
+    (hole.wind >= 0 ? ' <b>Wind ' + windLabel(hole) +
+      '</b> — shots of 4+ spaces drift one space downwind per arrow (wedges don\'t).' : ''));
   updateHUD();
 }
 
@@ -941,8 +987,19 @@ function doRoll(isMulligan) {
   var hole = curHole();
   var roll = 1 + Math.floor(Math.random() * 6);
   var t = hole.cells[play.ball.y * hole.w + play.ball.x];
-  var swing = roll + (t === G.FAIRWAY ? 1 : t === G.SAND ? -1 : 0);
-  var moves = G.movesForRoll(hole, play.ball.x, play.ball.y, roll);
+  var club = play.club || 'iron';
+  var swing, mod;
+  if (club === 'wedge') {
+    swing = Math.ceil(roll / 2);
+    mod = ' · wedge → move ' + swing;
+  } else {
+    swing = roll + (t === G.FAIRWAY ? 1 : t === G.SAND ? -1 : 0);
+    if (club === 'driver' && t === G.FAIRWAY) swing += 1;
+    mod = t === G.FAIRWAY ? ' +1 (fairway)' : t === G.SAND ? ' −1 (sand)' : '';
+    if (club === 'driver' && t === G.FAIRWAY) mod += ' +1 (driver)';
+    mod += ' → move ' + swing;
+  }
+  var moves = G.movesForRoll(hole, play.ball.x, play.ball.y, roll, club);
   el('p-die').textContent = DIE_FACES[roll - 1];
   if (!moves.length) {
     play.roll = null;
@@ -952,8 +1009,6 @@ function doRoll(isMulligan) {
     play.roll = roll;
     play.rollSwing = swing;
     play.moves = moves;
-    var mod = t === G.FAIRWAY ? ' +1 (fairway) → move ' + swing :
-              t === G.SAND ? ' −1 (sand) → move ' + swing : ' → move ' + swing;
     setMsg('Rolled <b>' + roll + '</b>' + mod +
       (swing < 1 ? '. No swing reaches anywhere — putt instead.' : ', or take a putt.'));
   }
@@ -966,7 +1021,8 @@ function applyMove(m) {
   var hole = curHole();
   play.strokes++;
   play.segments.push({ from: [play.ball.x, play.ball.y], land: [m.x, m.y], rest: [m.rx, m.ry] });
-  var slid = m.rx !== m.x || m.ry !== m.y;
+  var blown = m.wx !== undefined && (m.wx !== m.x || m.wy !== m.y);
+  var slid = m.rx !== (blown ? m.wx : m.x) || m.ry !== (blown ? m.wy : m.y);
   play.ball = { x: m.rx, y: m.ry };
   play.roll = null;
   play.moves = null;
@@ -975,7 +1031,9 @@ function applyMove(m) {
     holeOut();
   } else {
     var t = hole.cells[play.ball.y * hole.w + play.ball.x];
-    setMsg((slid ? 'The slope carries the ball along! ' : '') + terrainNote(t));
+    var carry = (blown ? 'The wind pushes the ball ' + windLabel(hole) + '! ' : '') +
+                (slid ? 'The slope carries the ball along! ' : '');
+    setMsg(carry + terrainNote(t));
   }
   redrawOverlay();
   updateHUD();
@@ -1095,13 +1153,24 @@ function showSummary() {
 
 function updateHUD() {
   var n = play.course.holes.length;
-  el('p-holeinfo').textContent = 'Hole ' + (play.hi + 1) + ' of ' + n + ' · Par 6';
+  var hole = curHole();
+  el('p-holeinfo').textContent = 'Hole ' + (play.hi + 1) + ' of ' + n + ' · Par 6' +
+    (hole.wind >= 0 ? ' · Wind ' + windLabel(hole) : '');
   el('p-strokes').textContent = play.strokes;
   var total = play.scores.reduce(function (a, b) { return a + (b || 0); }, 0);
   el('p-total').textContent = total + (play.over ? 0 : play.strokes);
   el('p-mull').textContent = play.mulligans;
   el('p-roll').disabled = play.over || !!play.moves;
   el('p-mulligan').disabled = play.over || !play.moves || play.mulligans < 1;
+  // Clubs lock while a shot is pending; the driver needs the fairway.
+  var ballT = hole.cells[play.ball.y * hole.w + play.ball.x];
+  var lock = play.over || !!play.moves;
+  Array.prototype.forEach.call(el('p-clubs').children, function (b) {
+    var c = b.getAttribute('data-club');
+    b.disabled = lock || (c === 'driver' && ballT !== G.FAIRWAY);
+    b.classList.toggle('sel', c === play.club);
+  });
+  if (play.club === 'driver' && ballT !== G.FAIRWAY) play.club = 'iron';
   var strip = el('p-strip');
   strip.innerHTML = '';
   for (var i = 0; i < n; i++) {
@@ -1117,6 +1186,12 @@ function updateHUD() {
 
 el('play-toggle').addEventListener('click', function () {
   if (play) exitPlay(); else startPlay();
+});
+el('p-clubs').addEventListener('click', function (evt) {
+  var club = evt.target.getAttribute && evt.target.getAttribute('data-club');
+  if (!club || !play || play.over || play.moves) return;
+  play.club = club;
+  updateHUD();
 });
 el('p-roll').addEventListener('click', function () { doRoll(false); });
 el('p-mulligan').addEventListener('click', function () {

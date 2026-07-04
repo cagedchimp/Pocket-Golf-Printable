@@ -154,6 +154,33 @@
     return [x, y];
   }
 
+  // Where the wind leaves a ball that lands on (x, y) after a shot of
+  // `dist` spaces: shots of 4+ drift downwind one space per point of
+  // wind strength (hole.windStr, 1 = breeze, 2 = gale), unless the
+  // shot was lofted (wedge) or the ball landed in the cup (holed is
+  // holed). Drift stops at water, trees, the grid edge — or the cup.
+  function windPoint(hole, x, y, dist, lofted) {
+    var w = hole.wind;
+    if (w == null || w < 0 || dist < 4 || lofted ||
+        (x === hole.hole.x && y === hole.hole.y)) return [x, y];
+    var steps = hole.windStr || 1;
+    for (var i = 0; i < steps; i++) {
+      var wx = x + DIRS[w][0], wy = y + DIRS[w][1];
+      if (!inBounds(wx, wy)) break;
+      var t = hole.cells[idx(wx, wy)];
+      if (t === WATER || t === TREE) break;
+      x = wx; y = wy;
+      if (x === hole.hole.x && y === hole.hole.y) break; // blown in!
+    }
+    return [x, y];
+  }
+
+  // Full landing resolution: wind drift first, then slope arrows.
+  function resolveLanding(hole, x, y, dist, lofted) {
+    var wp = windPoint(hole, x, y, dist, lofted);
+    return resolveSlope(hole, wp[0], wp[1]);
+  }
+
   function solve(hole) {
     var start = idx(hole.tee.x, hole.tee.y);
     var target = idx(hole.hole.x, hole.hole.y);
@@ -178,7 +205,7 @@
             continue;                        // fly over, but can't land
           }
           if (t === WATER) continue;         // fly over, can't land
-          var rest = resolveSlope(hole, x, y);
+          var rest = resolveLanding(hole, x, y, step, false);
           var rk = idx(rest[0], rest[1]);
           if (dist[rk] > strokes + 1) {
             dist[rk] = strokes + 1;
@@ -197,13 +224,16 @@
    * ------------------------------------------------------------------ */
 
   // Landing cells for a straight shot of exactly `dist` spaces from
-  // (x, y): 8 directions, trees block unless hitting from fairway,
-  // water and trees can be flown over but never landed on. Each entry
-  // carries the rest position after slope arrows are followed.
-  function shotTargets(hole, x, y, dist) {
+  // (x, y): 8 directions, trees block unless hitting from fairway (or
+  // opts.overTrees — a lofted wedge), water and trees can be flown
+  // over but never landed on. Each entry carries the wind-drifted
+  // point (wx, wy) and the final rest position after slope arrows.
+  function shotTargets(hole, x, y, dist, opts) {
     var out = [];
     if (dist < 1) return out;
     var fromType = hole.cells[idx(x, y)];
+    var overTrees = fromType === FAIRWAY || !!(opts && opts.overTrees);
+    var lofted = !!(opts && opts.lofted);
     for (var di = 0; di < 8; di++) {
       var ok = true, nx = x, ny = y;
       for (var step = 1; step <= dist; step++) {
@@ -211,34 +241,46 @@
         ny = y + DIRS[di][1] * step;
         if (!inBounds(nx, ny)) { ok = false; break; }
         var t = hole.cells[idx(nx, ny)];
-        if (t === TREE && fromType !== FAIRWAY) { ok = false; break; }
+        if (t === TREE && !overTrees) { ok = false; break; }
         if (step === dist && (t === TREE || t === WATER)) ok = false;
       }
       if (!ok) continue;
-      var rest = resolveSlope(hole, nx, ny);
-      out.push({ x: nx, y: ny, rx: rest[0], ry: rest[1], dist: dist });
+      var wp = windPoint(hole, nx, ny, dist, lofted);
+      var rest = resolveSlope(hole, wp[0], wp[1]);
+      out.push({ x: nx, y: ny, wx: wp[0], wy: wp[1], rx: rest[0], ry: rest[1], dist: dist });
     }
     return out;
   }
 
-  // Every legal destination for a die roll from (x, y): the full swing
-  // (fairway +1, sand -1, rough/green exactly the roll) plus the
-  // always-allowed putt of 1 space — or 1-2 spaces on the green.
+  // Every legal destination for a die roll from (x, y) with the chosen
+  // club (default iron):
+  //  - iron:   the full swing (fairway +1, sand −1, else exactly)
+  //  - driver: the iron swing +1 more — but only from the tee box or
+  //            fairway; anywhere else it plays as an iron
+  //  - wedge:  half the roll rounded up, lofted — flies over trees
+  //            from anywhere, immune to wind, ignores terrain mods
+  // plus the always-allowed putt of 1 space — or 1-2 on the green.
   // Deduped by landing cell; each move keeps the distance that got it.
-  function movesForRoll(hole, x, y, roll) {
+  function movesForRoll(hole, x, y, roll, club) {
     var t = hole.cells[idx(x, y)];
-    var swing = roll + (t === FAIRWAY ? 1 : t === SAND ? -1 : 0);
-    var dists = [swing, 1];
-    if (t === GREEN) dists.push(2);
     var seen = {}, out = [];
-    dists.forEach(function (d) {
-      shotTargets(hole, x, y, d).forEach(function (m) {
+    function addAll(moves) {
+      moves.forEach(function (m) {
         var k = idx(m.x, m.y);
         if (seen[k]) return;
         seen[k] = true;
         out.push(m);
       });
-    });
+    }
+    if (club === 'wedge') {
+      addAll(shotTargets(hole, x, y, Math.ceil(roll / 2), { overTrees: true, lofted: true }));
+    } else {
+      var swing = roll + (t === FAIRWAY ? 1 : t === SAND ? -1 : 0);
+      if (club === 'driver' && t === FAIRWAY) swing += 1;
+      addAll(shotTargets(hole, x, y, swing));
+    }
+    addAll(shotTargets(hole, x, y, 1));
+    if (t === GREEN) addAll(shotTargets(hole, x, y, 2));
     return out;
   }
 
@@ -357,15 +399,15 @@
   var DIFFICULTIES = {
     casual: {
       label: 'Casual', mulligans: 8, density: 0.75,
-      minBest: 3, maxBest: 3, moat: 0, island: 0, wideWater: 0
+      minBest: 3, maxBest: 3, moat: 0, island: 0, wideWater: 0, wind: 0.25
     },
     standard: {
       label: 'Standard', mulligans: 6, density: 1,
-      minBest: 3, maxBest: 6, moat: 0, island: 0, wideWater: 0
+      minBest: 3, maxBest: 6, moat: 0, island: 0, wideWater: 0, wind: 0.45
     },
     tough: {
       label: 'Tough', mulligans: 4, density: 1.3,
-      minBest: 4, maxBest: 6, moat: 0.45, island: 0.18, wideWater: 0.5
+      minBest: 4, maxBest: 6, moat: 0.45, island: 0.18, wideWater: 0.5, wind: 0.7
     }
   };
 
@@ -608,7 +650,7 @@
     slope[idx(tee.x, tee.y)] = -1;
     slope[idx(cup.x, cup.y)] = -1;
 
-    return { w: W, h: H, cells: cells, slope: slope, tee: tee, hole: cup, wonder: null };
+    return { w: W, h: H, cells: cells, slope: slope, tee: tee, hole: cup, wonder: null, wind: -1, windStr: 0 };
   }
 
   function generateHole(rng, theme, diff) {
@@ -671,6 +713,35 @@
     var holes = [];
     for (var i = 0; i < numHoles; i++) holes.push(generateHole(rng, theme, diff));
 
+    // Wind comes from its own RNG stream so hole layouts (drawn from
+    // the main stream) are untouched by this feature. A windy hole
+    // keeps its wind only if the wind-aware solver still fits the
+    // difficulty's stroke gate; otherwise it stays calm.
+    var windRng = mulberry32(xmur3('wind|' + seedName + '|' + String(seedStr))());
+    holes.forEach(function (h) {
+      var windy = windRng() < diff.wind;
+      var dir = ri(windRng, 8);                    // always drawn —
+      var gale = windRng() < 0.3;                  // keeps the stream aligned
+      if (!windy) return;
+      // Try the drawn strength and direction first, then rotate through
+      // the other directions, then downgrade a gale to a breeze — some
+      // combination usually keeps the stroke gate intact.
+      var strengths = gale ? [2, 1] : [1];
+      for (var si = 0; si < strengths.length; si++) {
+        h.windStr = strengths[si];
+        for (var t = 0; t < 8; t++) {
+          h.wind = (dir + t) % 8;
+          var windBest = solve(h);
+          if (windBest !== null && windBest >= diff.minBest && windBest <= diff.maxBest) {
+            h.best = windBest;
+            return;
+          }
+        }
+      }
+      h.wind = -1;    // nothing fits: the hole stays calm
+      h.windStr = 0;
+    });
+
     // Maybe hide a wonder on one hole (free mulligan when spotted).
     var wonderKey = rollWonder(rng, themeKey);
     if (wonderKey) {
@@ -727,6 +798,8 @@
     generateHole: generateHole,
     solve: solve,
     resolveSlope: resolveSlope,
+    resolveLanding: resolveLanding,
+    windPoint: windPoint,
     shotTargets: shotTargets,
     movesForRoll: movesForRoll,
     mulberry32: mulberry32,

@@ -176,9 +176,9 @@ playCourse.holes.forEach((h, i) => {
       const t = h.cells[m.y * h.w + m.x];
       assert(t !== golf.WATER && t !== golf.TREE,
         `play hole ${i + 1}: offered landing on a hazard at ${m.x},${m.y}`);
-      const rest = golf.resolveSlope(h, m.x, m.y);
+      const rest = golf.resolveLanding(h, m.x, m.y, m.dist, false);
       assert(rest[0] === m.rx && rest[1] === m.ry,
-        `play hole ${i + 1}: rest position disagrees with resolveSlope`);
+        `play hole ${i + 1}: rest position disagrees with resolveLanding`);
     });
   }
 
@@ -216,6 +216,89 @@ playCourse.holes.forEach((h, i) => {
   const moves = golf.movesForRoll(h, h.tee.x, h.tee.y, 6);
   assert(moves.some(m => m.dist === 1), 'putt option missing from tee');
 }
+
+// Wind: deterministic, direction in range, and the wind-aware solver
+// still fits the stroke gate on every windy hole. Wind must obey its
+// conventions: never drift a lofted or short shot, never into hazards.
+{
+  const a = golf.generateCourse('wind-check', 18, 'lakeside');
+  const b = golf.generateCourse('wind-check', 18, 'lakeside');
+  assert(JSON.stringify(a.holes.map(h => h.wind)) === JSON.stringify(b.holes.map(h => h.wind)),
+    'wind assignment not deterministic');
+  a.holes.forEach(h => {
+    if (h.wind < 0) assert(!h.windStr, 'calm hole carries wind strength');
+  });
+  const windy = a.holes.filter(h => h.wind >= 0);
+  assert(windy.length > 0, 'expected some windy holes on a standard course');
+  windy.forEach(h => {
+    assert(h.wind >= 0 && h.wind < 8, 'wind direction out of range');
+    assert(h.windStr === 1 || h.windStr === 2, `wind strength ${h.windStr} out of range`);
+    const wb = golf.solve(h);
+    assert(wb !== null && wb >= 3 && wb <= 6, `windy hole solves to ${wb}`);
+    // drift conventions, probed through windPoint
+    const far = golf.windPoint(h, h.tee.x, h.tee.y, 4, false);
+    const short = golf.windPoint(h, h.tee.x, h.tee.y, 3, false);
+    const lofted = golf.windPoint(h, h.tee.x, h.tee.y, 4, true);
+    assert(short[0] === h.tee.x && short[1] === h.tee.y, 'short shot drifted');
+    assert(lofted[0] === h.tee.x && lofted[1] === h.tee.y, 'lofted shot drifted');
+    if (far[0] !== h.tee.x || far[1] !== h.tee.y) {
+      const t = h.cells[far[1] * h.w + far[0]];
+      assert(t !== golf.WATER && t !== golf.TREE, 'wind drifted into a hazard');
+    }
+    const cup = golf.windPoint(h, h.hole.x, h.hole.y, 6, false);
+    assert(cup[0] === h.hole.x && cup[1] === h.hole.y, 'wind blew a holed ball out');
+    // drift distance is bounded by the wind strength
+    if (far[0] !== h.tee.x || far[1] !== h.tee.y) {
+      const d = Math.max(Math.abs(far[0] - h.tee.x), Math.abs(far[1] - h.tee.y));
+      assert(d <= h.windStr, `drifted ${d} with strength ${h.windStr}`);
+    }
+  });
+  // Gales (strength 2) exist somewhere across a small sweep.
+  let gales = 0;
+  for (let s = 0; s < 8; s++) {
+    golf.generateCourse('gale-' + s, 9, 'classic', 'tough').holes.forEach(h => {
+      if (h.windStr === 2) gales++;
+    });
+  }
+  assert(gales > 0, 'expected at least one gale across the sweep');
+}
+
+// Clubs: every club offers legal moves whose rest positions agree
+// with resolveLanding; the wedge halves the roll, flies over trees,
+// and never wind-drifts; the driver only gains distance on fairway.
+playCourse.holes.forEach((h, i) => {
+  for (let roll = 1; roll <= 6; roll++) {
+    for (const club of ['iron', 'driver', 'wedge']) {
+      const moves = golf.movesForRoll(h, h.tee.x, h.tee.y, roll, club);
+      assert(moves.length > 0, `hole ${i + 1} roll ${roll} ${club}: no moves`);
+      const lofted = club === 'wedge';
+      moves.forEach(m => {
+        const t = h.cells[m.y * h.w + m.x];
+        assert(t !== golf.WATER && t !== golf.TREE,
+          `hole ${i + 1} ${club}: landing on hazard`);
+        const rest = golf.resolveLanding(h, m.x, m.y, m.dist, lofted && m.dist !== 1 && m.dist !== 2);
+        assert(rest[0] === m.rx && rest[1] === m.ry,
+          `hole ${i + 1} ${club}: rest disagrees with resolveLanding`);
+      });
+      if (club === 'wedge') {
+        const maxSwing = Math.ceil(roll / 2);
+        moves.forEach(m => assert(m.dist <= Math.max(maxSwing, 2),
+          `hole ${i + 1} wedge roll ${roll}: dist ${m.dist} too long`));
+      }
+    }
+  }
+  // The tee sits on fairway, so the driver swing is one space longer
+  // than the iron swing for the same roll (when that distance has any
+  // legal landing at all).
+  if (golf.shotTargets(h, h.tee.x, h.tee.y, 5).length) {
+    assert(golf.movesForRoll(h, h.tee.x, h.tee.y, 3, 'driver').some(m => m.dist === 5),
+      `hole ${i + 1}: driver roll 3 from tee should offer 5-space shots`);
+  }
+  if (golf.shotTargets(h, h.tee.x, h.tee.y, 4).length) {
+    assert(golf.movesForRoll(h, h.tee.x, h.tee.y, 3, 'iron').some(m => m.dist === 4),
+      `hole ${i + 1}: iron roll 3 from tee should offer 4-space shots`);
+  }
+});
 
 // Determinism: same seed -> identical course
 const a = golf.generateCourse('determinism', 9);
