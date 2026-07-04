@@ -291,6 +291,13 @@
   body.playing #play { display: block; }
   body.playing #sheets { display: none; }
   body.playing .print-only { display: none; }
+  /* While playing, collapse the controls to a slim bar — title, exit,
+     print — so the tall wrapping selects don't eat the board. */
+  body.playing .controls > * { display: none; }
+  body.playing .controls h1 { display: block; flex-basis: auto; margin: 0; }
+  body.playing .controls .spacer { display: block; }
+  body.playing .controls #play-toggle,
+  body.playing .controls #print { display: inline-block; }
 
   .play-wrap {
     max-width: 880px;
