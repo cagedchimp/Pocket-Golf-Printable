@@ -130,6 +130,16 @@
   .sheet.booklet.solo { display: block; }
   .sheet.booklet.solo .quarter { width: 100%; height: 100%; padding: 0.4in 0.5in; }
 
+  /* Course-map cover page: the title card and scorecard share the
+     Letter cover, so the map pages are all golf. */
+  .sheet.booklet.cover { display: flex; flex-direction: column; padding: 0; }
+  .sheet.booklet.cover .quarter { width: 100%; }
+  .sheet.booklet.cover .title-card { flex: 0 0 55%; padding: 0.35in 0.5in 0.1in; }
+  .sheet.booklet.cover .title-card .flag { margin-top: 0.05in; }
+  .sheet.booklet.cover .score-card { flex: 1; min-height: 0; padding: 0.12in 0.5in 0.35in; }
+  .sheet.booklet.cover .score-card .score-tables,
+  .sheet.booklet.cover .score-card .players { max-width: 6.2in; width: 100%; margin-left: auto; margin-right: auto; }
+
   .booklet-foot {
     display: flex; align-items: center; gap: 10px;
     border-top: 1.5px solid var(--ink);
@@ -470,10 +480,10 @@
   </select>
   <label for="layout">Layout</label>
   <select id="layout">
-    <option value="sheet" selected>4-up cards</option>
-    <option value="single">Single cards</option>
+    <option value="sheet" selected>4-up cards (Letter)</option>
+    <option value="single">Single cards (4¼×5½)</option>
     <option value="booklet">Pad booklet (6×8)</option>
-    <option value="continuous">Course map</option>
+    <option value="continuous">Course map (Letter)</option>
   </select>
   <label for="players">Players</label>
   <select id="players">
@@ -1082,7 +1092,7 @@ function bookletFooter(course, players, fromHole, toHole) {
 // Fixed page formats: the pad booklet prints 6 holes per 6×8 pad
 // page; the course map prints 9 per Letter page.
 var PAD_DIMS = { w: '6in', h: '8in', aspect: 6 / 8, per: 6 };
-var MAP_DIMS = { w: '8.5in', h: '11in', aspect: 8.5 / 11, per: 9 };
+var MAP_DIMS = { w: '8.5in', h: '11in', aspect: 8.5 / 11, per: 9, coverScore: true };
 
 // The pad booklet is the same organic course map on 6×8 pad pages —
 // the print-and-staple pocket format.
@@ -1104,7 +1114,19 @@ function buildContinuous(sheets, course, players, dimsOverride) {
     sheet.appendChild(quarter);
     return sheet;
   }
-  sheets.appendChild(solo(titleCard(course, players)));
+  if (dims.coverScore) {
+    // Letter covers have room for both: scorecard on the cover page,
+    // no separate scorecard sheet.
+    var cover = document.createElement('div');
+    cover.className = 'sheet booklet cover';
+    cover.style.width = dims.w;
+    cover.style.height = dims.h;
+    cover.appendChild(titleCard(course, players));
+    cover.appendChild(scoreCard(course, players));
+    sheets.appendChild(cover);
+  } else {
+    sheets.appendChild(solo(titleCard(course, players)));
+  }
   for (var i = 0; i < course.holes.length; i += PER) {
     var group = course.holes.slice(i, i + PER);
     var comp = G.packSheet(group, { aspect: dims.aspect });
@@ -1123,7 +1145,7 @@ function buildContinuous(sheets, course, players, dimsOverride) {
     sheet.appendChild(bookletFooter(course, players, i + 1, Math.min(i + PER, course.holes.length)));
     sheets.appendChild(sheet);
   }
-  sheets.appendChild(solo(scoreCard(course, players)));
+  if (!dims.coverScore) sheets.appendChild(solo(scoreCard(course, players)));
 }
 
 /* ==================================================================== *
