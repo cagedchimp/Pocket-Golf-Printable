@@ -54,8 +54,11 @@ plain HTML/CSS/JS served as static files.
   (6 on a 6×8 pad, 9 on Letter/A4) composed onto one shared dot grid by
   `packSheet()`: tight per-hole footprints placed rigidly (translate +
   90°-multiple rotation of self-solved holes, so solvability transfers),
-  ringed around a central commons block and compacted toward it until
-  2-cell clearance, routed so each cup ends near the next tee.
+  ringed around a central commons block, compacted toward it, then
+  interlaced — each hole pulls toward its route-predecessor until only
+  a 1-cell rough seam separates playable cells (the invariant), and
+  decoration turns those seams into the tree lines between fairways.
+  Routed so each cup ends near the next tee.
   decorateSheet() then dresses the sheet like a course map: one big
   water feature (usually an organic-shoreline lake sized to the
   commons; sometimes a wide river) plus connective forest blobs across
