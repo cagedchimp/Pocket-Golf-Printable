@@ -454,6 +454,28 @@ playCourse.holes.forEach((h, i) => {
     });
   }
   assert(features >= 20, `expected most sheets to get a feature, got ${features}/30`);
+
+  // no hollow middle: after decoration, at most ~a third of the commons
+  // may still be plain rough, on every theme
+  for (const theme of ['classic', 'forest', 'lakeside', 'dunes', 'highlands']) {
+    for (let s = 0; s < 4; s++) {
+      const course = golf.generateCourse('mid-' + s, 9, theme, 'standard');
+      const comp = golf.packSheet(course.holes.slice(0, 6), { aspect: 6 / 8 });
+      golf.decorateSheet(comp, { rng: golf.mulberry32(500 + s), themeKey: theme });
+      const c = comp.commons;
+      let bare = 0, total = 0;
+      for (let y = c.y0; y <= c.y1; y++) {
+        for (let x = c.x0; x <= c.x1; x++) {
+          total++;
+          if (comp.cells[y * comp.w + x] === golf.ROUGH && comp.slope[y * comp.w + x] < 0) bare++;
+        }
+      }
+      assert(bare <= total * 0.38, `${theme} mid-${s}: hollow commons (${bare}/${total} bare)`);
+      const res = golf.validateSheet(comp);
+      assert(res.every(b => b !== null && b >= 3 && b <= 6),
+        `${theme} mid-${s}: sheet not playable as printed`);
+    }
+  }
 }
 
 // Determinism: same seed -> identical course
