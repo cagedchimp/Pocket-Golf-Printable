@@ -427,12 +427,24 @@
     // Hazard-count scaling for the difficulty tier (identity on standard).
     function dens(n) { return Math.round(n * diff.density); }
 
-    // Tee near one short edge, cup near the other; flip half the time
-    // so the course alternates visual direction.
-    var flip = rng() < 0.5;
-    var tee = { x: 3 + ri(rng, W - 6), y: 1 + ri(rng, 2) };
-    var cup = { x: 2 + ri(rng, W - 4), y: H - 2 - ri(rng, 2) };
-    if (flip) { var tmp = tee; tee = cup; cup = tmp; }
+    // Tee and cup on opposite ends of the box. Half the holes run
+    // straight down the grid; the rest run corner-to-corner on one of
+    // the two diagonals, so a course isn't all top-to-bottom holes.
+    // Every orientation spans the full 20-row height, which keeps the
+    // tee→cup distance long enough to stay above the 3-stroke floor.
+    var orient = ri(rng, 4);   // 0-1 vertical, 2 diagonal "\", 3 diagonal "/"
+    var tee, cup;
+    if (orient <= 1) {
+      tee = { x: 3 + ri(rng, W - 6), y: 1 + ri(rng, 2) };
+      cup = { x: 2 + ri(rng, W - 4), y: H - 2 - ri(rng, 2) };
+    } else if (orient === 2) {                 // top-left → bottom-right
+      tee = { x: 1 + ri(rng, 3), y: 1 + ri(rng, 2) };
+      cup = { x: W - 2 - ri(rng, 3), y: H - 2 - ri(rng, 2) };
+    } else {                                   // top-right → bottom-left
+      tee = { x: W - 2 - ri(rng, 3), y: 1 + ri(rng, 2) };
+      cup = { x: 1 + ri(rng, 3), y: H - 2 - ri(rng, 2) };
+    }
+    if (rng() < 0.5) { var tmp = tee; tee = cup; cup = tmp; }
 
     function nearPt(x, y, p, r) {
       return Math.max(Math.abs(x - p.x), Math.abs(y - p.y)) <= r;
@@ -447,13 +459,18 @@
       }
     }
 
-    // Centerline from tee to cup with 1-2 dogleg elbows.
+    // Centerline from tee to cup with 1-2 dogleg elbows. Interior
+    // waypoints march along the tee→cup line (works for any
+    // orientation) and jitter off it to form the doglegs.
     var waypoints = [[tee.x, tee.y]];
     var nWp = 1 + ri(rng, 2);
     for (var i = 1; i <= nWp; i++) {
-      var fy = tee.y + Math.round((cup.y - tee.y) * (i / (nWp + 1)));
-      var fx = 2 + ri(rng, W - 4);
-      waypoints.push([fx, fy]);
+      var f = i / (nWp + 1);
+      var bx = tee.x + (cup.x - tee.x) * f;
+      var by = tee.y + (cup.y - tee.y) * f;
+      var wx = Math.max(2, Math.min(W - 3, Math.round(bx) + ri(rng, 5) - 2));
+      var wy = Math.max(2, Math.min(H - 3, Math.round(by) + ri(rng, 5) - 2));
+      waypoints.push([wx, wy]);
     }
     waypoints.push([cup.x, cup.y]);
 
@@ -791,6 +808,45 @@
     };
   }
 
+  /* ------------------------------------------------------------------ *
+   * Sheet composition — several holes on one continuous grid            *
+   * ------------------------------------------------------------------ */
+
+  // Lay `holes` onto one shared grid in a cols×rows arrangement for a
+  // continuous printed sheet. Placement is translate-only (no rotation)
+  // into disjoint slots separated by a `gap` of rough, so each hole's
+  // cells are copied verbatim: solvability is preserved exactly and no
+  // hole's playable cells ever touch a neighbour's. Returns the big
+  // grid plus, per hole, where its tee / cup / wonder landed.
+  function composeSheet(holes, cols, rows, gap) {
+    gap = gap == null ? 1 : gap;
+    var gw = cols * W + (cols - 1) * gap;
+    var gh = rows * H + (rows - 1) * gap;
+    var cells = new Array(gw * gh).fill(ROUGH);
+    var slope = new Array(gw * gh).fill(-1);
+    var placements = [];
+    for (var n = 0; n < holes.length && n < cols * rows; n++) {
+      var h = holes[n];
+      var ox = (n % cols) * (W + gap);
+      var oy = Math.floor(n / cols) * (H + gap);
+      for (var y = 0; y < H; y++) {
+        for (var x = 0; x < W; x++) {
+          var gk = (oy + y) * gw + (ox + x);
+          cells[gk] = h.cells[y * W + x];
+          slope[gk] = h.slope[y * W + x];
+        }
+      }
+      placements.push({
+        hole: h, num: n + 1, ox: ox, oy: oy,
+        tee: { x: ox + h.tee.x, y: oy + h.tee.y },
+        cup: { x: ox + h.hole.x, y: oy + h.hole.y },
+        wind: h.wind, windStr: h.windStr,
+        wonder: h.wonder ? { key: h.wonder.key, x: ox + h.wonder.x, y: oy + h.wonder.y } : null
+      });
+    }
+    return { w: gw, h: gh, cells: cells, slope: slope, placements: placements };
+  }
+
   var api = {
     W: W, H: H,
     ROUGH: ROUGH, FAIRWAY: FAIRWAY, SAND: SAND, WATER: WATER, TREE: TREE, GREEN: GREEN,
@@ -800,6 +856,7 @@
     DIFFICULTIES: DIFFICULTIES,
     generateCourse: generateCourse,
     generateHole: generateHole,
+    composeSheet: composeSheet,
     solve: solve,
     resolveSlope: resolveSlope,
     resolveLanding: resolveLanding,
