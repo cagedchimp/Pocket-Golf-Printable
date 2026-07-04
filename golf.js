@@ -896,64 +896,61 @@
     var q = rotPt(hx - fp.x0, hy - fp.y0, fw, fh, rot);
     return [cox + q[0], coy + q[1]];
   }
-  // The 180° flip (rot 0 vs rot 2) that puts a hole's tee at the top of
-  // its slot (teeTop) or the bottom — both keep the footprint upright.
-  function vertRot(h, teeTop) {
-    var teeAbove = h.tee.y <= h.hole.y;
-    return (teeAbove === teeTop) ? 0 : 2;
+  // The landscape rotation (rot 1 vs 3) that puts a hole's tee on the
+  // left (teeLeft) or right of its cell. Under rot 1 the tee lands left
+  // exactly when it sat below the cup in the original portrait hole.
+  function horizRot(h, teeLeft) {
+    var teeLeftUnderRot1 = h.tee.y > h.hole.y;
+    return (teeLeftUnderRot1 === teeLeft) ? 1 : 3;
   }
 
-  // Pack several holes onto one shared grid as a walkable route: holes
-  // snake down the first column and up the next, and each is flipped so
-  // its cup sits beside the following hole's tee — the way a real course
-  // routes green to next tee. Placement stays rigid (translate + 180°
-  // flip) from each hole's own solved frame, so solvability is
-  // preserved, and with a rough `margin` around every non-overlapping
-  // slot no two holes' playable cells ever touch. Deterministic.
-  // Returns the same shape as composeSheet so the renderer is shared.
+  // Pack several holes onto one shared grid as a walkable route that
+  // fills the portrait page. Holes are turned on their side (landscape)
+  // and laid in a 2-column grid, snaking left→right along one row then
+  // right→left along the next; each hole is oriented so its cup sits
+  // beside the following hole's tee — a real green-to-next-tee routing.
+  // Landscape holes fill the grid cells of a portrait sheet far better
+  // than upright ones. Placement stays rigid (translate + 90° rotation)
+  // from each hole's own solved frame, so solvability is preserved, and
+  // with a rough margin around every cell no two holes' playable cells
+  // touch. Deterministic. Same return shape as composeSheet.
   function packSheet(holes, opts) {
     opts = opts || {};
     var margin = opts.margin == null ? 1 : opts.margin;
-    var gap = opts.gap == null ? 2 : opts.gap;
     var n = holes.length;
-    var cols = n <= 2 ? 1 : 2;
-    var perCol = Math.ceil(n / cols);
+    var cols = n === 1 ? 1 : 2;
+    var rows = Math.ceil(n / cols);
 
     var items = holes.map(function (h, i) {
       var fp = holeFootprint(h);
       return { hole: h, idx: i, fp: fp, fw: fp.x1 - fp.x0 + 1, fh: fp.y1 - fp.y0 + 1 };
     });
 
-    // Lay columns left→right. Even columns walk downward (holes tee-top,
-    // cup-bottom); odd columns walk upward (tee-bottom, cup-top). In an
-    // upward column the physical top→bottom order is the reverse of the
-    // walk order, so the first-walked hole lands at the bottom, next to
-    // the previous column's finishing cup.
-    var placed = new Array(n);
-    var xCursor = 0;
-    for (var c = 0; c < cols; c++) {
-      var colItems = items.slice(c * perCol, (c + 1) * perCol);
-      if (!colItems.length) break;
-      var down = (c % 2 === 0);
-      var colW = 0;
-      colItems.forEach(function (it) {
-        it._rot = vertRot(it.hole, down);
-        colW = Math.max(colW, it.fw + 2 * margin);
-      });
-      var phys = down ? colItems : colItems.slice().reverse();
-      var yCursor = 0;
-      phys.forEach(function (it) {
-        placed[it.idx] = { it: it, rot: it._rot, ox: xCursor + margin, oy: yCursor + margin };
-        yCursor += it.fh + 2 * margin + gap;
-      });
-      xCursor += colW + gap;
-    }
-
-    var gw = 0, gh = 0;
-    placed.forEach(function (p) {
-      gw = Math.max(gw, p.ox + p.it.fw + margin);
-      gh = Math.max(gh, p.oy + p.it.fh + margin);
+    // Uniform cells sized to the largest landscape footprint (width =
+    // portrait height fh, height = portrait width fw).
+    var cellW = 0, cellH = 0;
+    items.forEach(function (it) {
+      cellW = Math.max(cellW, it.fh + 2 * margin);
+      cellH = Math.max(cellH, it.fw + 2 * margin);
     });
+
+    // Boustrophedon: even rows walk left→right (tee-left), odd rows
+    // right→left (tee-right); centre each landscape hole in its cell.
+    var placed = new Array(n);
+    for (var k = 0; k < n; k++) {
+      var row = Math.floor(k / cols), inRow = k % cols;
+      var leftToRight = (row % 2 === 0);
+      var col = leftToRight ? inRow : (cols - 1 - inRow);
+      var it = items[k];
+      var rot = horizRot(it.hole, leftToRight);
+      var lw = it.fh, lh = it.fw; // landscape dims
+      placed[k] = {
+        it: it, rot: rot,
+        ox: col * cellW + Math.floor((cellW - lw) / 2),
+        oy: row * cellH + Math.floor((cellH - lh) / 2)
+      };
+    }
+    var gw = cols * cellW, gh = rows * cellH;
 
     var cells = new Array(gw * gh).fill(ROUGH);
     var slope = new Array(gw * gh).fill(-1);

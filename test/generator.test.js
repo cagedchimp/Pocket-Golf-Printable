@@ -382,19 +382,19 @@ playCourse.holes.forEach((h, i) => {
     }
   }
   assert(leaks === 0, `packed sheet has ${leaks} cross-hole playable adjacencies`);
-  // holes stay upright (portrait) for clean vertical routing
-  s.placements.forEach(p => assert(p.rot === 0 || p.rot === 2, `hole ${p.num}: unexpected rot ${p.rot}`));
-  // routing: each cup should sit near the next hole's tee. Within a
-  // column consecutive holes are stacked so gaps are short; allow the
-  // single column-to-column hop to be longer.
-  const hop = [];
-  for (let i = 0; i < s.placements.length - 1; i++) {
+  // holes are turned on their side (landscape) to fill the portrait page
+  s.placements.forEach(p => assert(p.rot === 1 || p.rot === 3, `hole ${p.num}: unexpected rot ${p.rot}`));
+  // routing: within a row, consecutive holes are side by side, so the
+  // cup→next-tee hop at even indices (the intra-row steps) must be
+  // short; odd indices are the row-to-row drops and may be longer.
+  for (let i = 0; i + 1 < s.placements.length; i++) {
     const a = s.placements[i].cup, b = s.placements[i + 1].tee;
-    hop.push(Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)));
+    const d = Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+    if (i % 2 === 0) assert(d <= 11, `intra-row hop ${i} too long: ${d}`);
   }
-  const shortHops = hop.filter(d => d <= 9).length;
-  assert(shortHops >= hop.length - 1,
-    `routing: only ${shortHops}/${hop.length} cup→next-tee hops are short (${JSON.stringify(hop)})`);
+  // the packed grid should roughly match the page aspect, not be a
+  // narrow strip (the fill fix)
+  assert(s.w / s.h > 0.6, `packed grid too narrow: ${s.w}x${s.h} = ${(s.w/s.h).toFixed(2)}`);
 }
 
 // Determinism: same seed -> identical course

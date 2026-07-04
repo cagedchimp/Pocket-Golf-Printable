@@ -45,9 +45,9 @@ dependencies.
 - **Layout** — *4-up sheet* (four cards per Letter/A4 page), *Single
   cards* (one pocket-size card per page, for PDF export), or
   *Booklet (6×8)* — several holes to a 6×8 page with a two-player
-  footer, or *Continuous (6×8)* — six holes on one shared dot grid laid
-  out as a walkable route (each green ends near the next tee), closest
-  to the printed Paper Apps GOLF pad.
+  footer, or *Continuous (6×8)* — six holes turned sideways and laid in
+  a route-order grid that fills one shared dot-grid page (each green
+  ends near the next tee), closest to the printed Paper Apps GOLF pad.
 - **Players** — 1 or 2. Two players adds P1/P2 stroke columns to the
   scorecard and a mulligan track per player on the booklet footer.
 - **Paper** — Letter (quarters are 4.25 × 5.5 in) or A4 (quarters are
