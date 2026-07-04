@@ -42,15 +42,16 @@ dependencies.
   rating on its title page. Try
   [Lakeside on Tough](https://cagedchimp.github.io/Pocket-Golf-Printable/?seed=demo-course&theme=lakeside&diff=tough&holes=18).
 - **Holes** — 9 or 18.
-- **Layout** — *4-up sheet* (four cards per Letter/A4 page), *Single
-  cards* (one pocket-size card per page, for PDF export), or
-  *Booklet (6×8)* — several holes to a 6×8 page with a two-player
-  footer, or *Continuous (6×8)* — six holes turned sideways and laid in
-  a route-order grid that fills one shared dot-grid page (each green
-  ends near the next tee), closest to the printed Paper Apps GOLF pad.
+- **Layout** — *4-up cards* (four cards per Letter/A4 page), *Single
+  cards* (one pocket-size card per page, for PDF export), *Card
+  booklet (6×8)* — a grid of hole cards on fixed 6×8 pages with a
+  two-player footer — or *Course map*: the holes interlaced onto one
+  shared dot grid like a real course map, fairways side by side with
+  tree-line seams, an organic lake or river woven in, and each green
+  ending near the next tee.
 - **Players** — 1 or 2. Two players adds P1/P2 stroke columns to the
   scorecard and a mulligan track per player on the booklet footer.
-- **Paper** — Letter, A4, or a 6×8 pad. In the Continuous layout the
+- **Paper** — Letter, A4, or a 6×8 pad. In the Course map layout the
   paper size sets the holes per sheet: nine on Letter/A4, six on a 6×8
   pad.
 - **▶ Play** — play the course on screen instead of (or before)
