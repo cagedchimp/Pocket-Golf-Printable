@@ -119,6 +119,51 @@
   .sheet.card-page::before, .sheet.card-page::after { display: none; }
   .sheet.card-page .quarter { width: 100%; height: 100%; }
 
+  /* booklet layout: 6×8 pages with several holes to a sheet and a
+     two-player footer, in the style of the printed Paper Apps GOLF pad.
+     Fixed 6×8 regardless of the Letter/A4 setting. */
+  .sheet.booklet {
+    width: 6in;
+    height: 8in;
+    display: flex;
+    flex-direction: column;
+    padding: 0.3in 0.32in 0.18in;
+  }
+  .sheet.booklet::before, .sheet.booklet::after { display: none; }
+  .sheet.booklet.solo { display: block; }
+  .sheet.booklet.solo .quarter { width: 100%; height: 100%; padding: 0.4in 0.5in; }
+
+  .booklet .holes-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: repeat(3, 1fr);
+    gap: 0.12in 0.22in;
+    min-height: 0;
+  }
+  .hole-mini { position: relative; display: flex; flex-direction: column; min-height: 0; }
+  .hole-mini svg { flex: 1; width: 100%; height: 0; min-height: 0; }
+  .hole-mini .tag {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 10px; font-weight: 700; letter-spacing: .02em; padding: 1px 2px 0;
+  }
+  .hole-mini .tag .wind { opacity: .6; font-weight: 600; }
+
+  .booklet-foot {
+    display: flex; align-items: center; gap: 10px;
+    border-top: 1.5px solid var(--ink);
+    margin-top: 0.06in; padding-top: 6px;
+    font-size: 11px; font-weight: 700;
+  }
+  .booklet-foot .course { letter-spacing: .02em; white-space: nowrap; }
+  .booklet-foot .ptracks { display: flex; gap: 14px; flex: 1; justify-content: center; flex-wrap: wrap; }
+  .booklet-foot .ptrack { display: flex; align-items: center; gap: 5px; }
+  .booklet-foot .ptrack .pips { display: flex; gap: 3px; }
+  .booklet-foot .ptrack .pip {
+    width: 9px; height: 9px; border: 1.4px solid var(--ink); border-radius: 50%;
+  }
+  .booklet-foot .range { opacity: .7; white-space: nowrap; }
+
   /* ------------------------------ hole card ------------------------ */
   .hole-card svg { flex: 1; width: 100%; height: 0; min-height: 0; }
 
@@ -436,6 +481,12 @@
   <select id="layout">
     <option value="sheet" selected>4-up sheet</option>
     <option value="single">Single cards</option>
+    <option value="booklet">Booklet (6×8)</option>
+  </select>
+  <label for="players">Players</label>
+  <select id="players">
+    <option value="1" selected>1 player</option>
+    <option value="2">2 players</option>
   </select>
   <span class="spacer"></span>
   <button id="play-toggle">▶ Play</button>
@@ -868,33 +919,97 @@ function titleCard(course) {
   return div;
 }
 
-function scoreCard(course) {
+function scoreCard(course, players) {
+  players = players || 1;
   var div = document.createElement('div');
   div.className = 'quarter score-card';
   var n = course.holes.length;
+  var strokeCols = players > 1 ? '<td class="stroke-cell"></td><td class="stroke-cell"></td>'
+                               : '<td class="stroke-cell"></td>';
 
   function table(from, to, sumLabel) {
+    var head = '<tr><th>Hole</th><th>Par</th>' +
+      (players > 1 ? '<th>P1</th><th>P2</th>' : '<th>Strokes</th>') + '</tr>';
     var rows = '';
     for (var i = from; i <= to; i++) {
-      rows += '<tr><td>' + i + '</td><td>6</td><td class="stroke-cell"></td></tr>';
+      rows += '<tr><td>' + i + '</td><td>6</td>' + strokeCols + '</tr>';
     }
-    rows += '<tr class="sum"><td>' + sumLabel + '</td><td>' + (to - from + 1) * 6 + '</td><td class="stroke-cell"></td></tr>';
-    return '<table><tr><th>Hole</th><th>Par</th><th>Strokes</th></tr>' + rows + '</table>';
+    rows += '<tr class="sum"><td>' + sumLabel + '</td><td>' + (to - from + 1) * 6 + '</td>' + strokeCols + '</tr>';
+    return '<table>' + head + rows + '</table>';
   }
 
   var tables = n > 9
     ? table(1, 9, 'Out') + table(10, n, 'In')
     : table(1, n, 'Total');
 
+  var names = players > 1
+    ? '<div class="line">Player 1</div><div class="line">Player 2</div><div class="line">Date</div>'
+    : '<div class="line">Player</div><div class="line">Date</div>';
+
   div.innerHTML =
     '<h3>Scorecard</h3>' +
     '<div class="course-name">' + course.name + ' &middot; Par ' + course.par + '</div>' +
     '<div class="score-tables">' + tables + '</div>' +
-    '<div class="players">' +
-      '<div class="line">Player</div>' +
-      '<div class="line">Date</div>' +
-    '</div>';
+    '<div class="players">' + names + '</div>';
   return div;
+}
+
+// A compact hole for the booklet layout: dot-grid map with a small
+// number + wind tag, no score blanks (scores go on the scorecard).
+function holeMini(hole, num) {
+  var div = document.createElement('div');
+  div.className = 'hole-mini';
+  var wind = hole.wind >= 0 ? '<span class="wind">' + windLabel(hole) + '</span>' : '';
+  div.innerHTML =
+    '<div class="tag"><span>Hole ' + num + '</span>' + wind + '</div>' +
+    renderHoleSVG(hole);
+  return div;
+}
+
+// The footer strip along the bottom of each booklet hole-page: course
+// name, a mulligan pip track per player, and the page's hole range —
+// mirroring the printed Paper Apps GOLF pad.
+function bookletFooter(course, players, fromHole, toHole) {
+  function track(label) {
+    var pips = '';
+    for (var i = 0; i < course.mulligans; i++) pips += '<div class="pip"></div>';
+    return '<div class="ptrack"><span>' + label + '</span><div class="pips">' + pips +
+      '</div><span>M</span></div>';
+  }
+  var tracks = track('P1') + (players > 1 ? track('P2') : '');
+  var range = 'Holes ' + fromHole + (toHole > fromHole ? '&ndash;' + toHole : '');
+  var foot = document.createElement('div');
+  foot.className = 'booklet-foot';
+  foot.innerHTML =
+    '<span class="course">' + course.name + '</span>' +
+    '<span class="ptracks">' + tracks + '</span>' +
+    '<span class="range">' + range + '</span>';
+  return foot;
+}
+
+// Assemble booklet pages: a title cover, hole-pages of up to 6 holes
+// (2×3) each with the two-player footer, then a scorecard page.
+function buildBooklet(sheets, course, players) {
+  var PER = 6;
+  function solo(quarter) {
+    var sheet = document.createElement('div');
+    sheet.className = 'sheet booklet solo';
+    sheet.appendChild(quarter);
+    return sheet;
+  }
+  sheets.appendChild(solo(titleCard(course)));
+  for (var i = 0; i < course.holes.length; i += PER) {
+    var sheet = document.createElement('div');
+    sheet.className = 'sheet booklet';
+    var grid = document.createElement('div');
+    grid.className = 'holes-grid';
+    var last = Math.min(i + PER, course.holes.length);
+    for (var j = i; j < last; j++) grid.appendChild(holeMini(course.holes[j], j + 1));
+    sheet.appendChild(grid);
+    sheet.appendChild(bookletFooter(course, players, i + 1, last));
+    sheets.appendChild(sheet);
+  }
+  sheets.appendChild(solo(scoreCard(course, players)));
 }
 
 /* ==================================================================== *
@@ -1345,7 +1460,9 @@ function syncURL() {
   params.set('theme', document.getElementById('theme').value);
   params.set('diff', document.getElementById('diff').value);
   params.set('holes', document.getElementById('holes').value);
-  if (document.getElementById('layout').value === 'single') params.set('layout', 'single');
+  var layout = document.getElementById('layout').value;
+  if (layout !== 'sheet') params.set('layout', layout);
+  if (document.getElementById('players').value === '2') params.set('players', '2');
   if (play) params.set('play', '1');
   history.replaceState(null, '', '?' + params.toString());
 }
@@ -1354,34 +1471,41 @@ function rebuild() {
   var seed = document.getElementById('seed').value.trim() || 'pocket-golf';
   var numHoles = parseInt(document.getElementById('holes').value, 10);
   var theme = document.getElementById('theme').value;
+  var layout = document.getElementById('layout').value;
+  var players = parseInt(document.getElementById('players').value, 10);
   var course = G.generateCourse(seed, numHoles, theme, document.getElementById('diff').value);
   syncURL();
   // The in-play legend shares the title card's items (tree species
   // follows the theme).
   document.getElementById('p-legend').innerHTML = legendHTML(course.treeStyle);
 
-  var quarters = [titleCard(course)];
-  course.holes.forEach(function (h, i) { quarters.push(holeCard(h, i + 1)); });
-  quarters.push(scoreCard(course));
-
   var sheets = document.getElementById('sheets');
   sheets.innerHTML = '';
-  if (document.getElementById('layout').value === 'single') {
-    // one pocket-size page per card — print to PDF for a card deck
-    quarters.forEach(function (q) {
-      var sheet = document.createElement('div');
-      sheet.className = 'sheet card-page';
-      sheet.appendChild(q);
-      sheets.appendChild(sheet);
-    });
+
+  if (layout === 'booklet') {
+    buildBooklet(sheets, course, players);
   } else {
-    for (var i = 0; i < quarters.length; i += 4) {
-      var sheet = document.createElement('div');
-      sheet.className = 'sheet';
-      for (var j = i; j < i + 4; j++) {
-        sheet.appendChild(quarters[j] || Object.assign(document.createElement('div'), { className: 'quarter' }));
+    var quarters = [titleCard(course)];
+    course.holes.forEach(function (h, i) { quarters.push(holeCard(h, i + 1)); });
+    quarters.push(scoreCard(course, players));
+
+    if (layout === 'single') {
+      // one pocket-size page per card — print to PDF for a card deck
+      quarters.forEach(function (q) {
+        var sheet = document.createElement('div');
+        sheet.className = 'sheet card-page';
+        sheet.appendChild(q);
+        sheets.appendChild(sheet);
+      });
+    } else {
+      for (var i = 0; i < quarters.length; i += 4) {
+        var sheet = document.createElement('div');
+        sheet.className = 'sheet';
+        for (var j = i; j < i + 4; j++) {
+          sheet.appendChild(quarters[j] || Object.assign(document.createElement('div'), { className: 'quarter' }));
+        }
+        sheets.appendChild(sheet);
       }
-      sheets.appendChild(sheet);
     }
   }
 
@@ -1426,9 +1550,12 @@ document.getElementById('diff').addEventListener('change', rebuild);
 document.getElementById('holes').addEventListener('change', rebuild);
 function updatePageSize() {
   var a4 = document.getElementById('paper').value === 'a4';
-  var single = document.getElementById('layout').value === 'single';
+  var layout = document.getElementById('layout').value;
   document.body.classList.toggle('a4', a4);
-  var size = single ? (a4 ? '105mm 148mm' : '4.25in 5.5in') : (a4 ? 'A4' : 'letter');
+  var size;
+  if (layout === 'booklet') size = '6in 8in';           // fixed pad size
+  else if (layout === 'single') size = a4 ? '105mm 148mm' : '4.25in 5.5in';
+  else size = a4 ? 'A4' : 'letter';
   document.getElementById('page-size').textContent =
     '@page { size: ' + size + '; margin: 0; }';
 }
@@ -1437,6 +1564,7 @@ document.getElementById('layout').addEventListener('change', function () {
   updatePageSize();
   rebuild();
 });
+document.getElementById('players').addEventListener('change', rebuild);
 document.getElementById('print').addEventListener('click', function () { window.print(); });
 
 // Restore state from the URL so course links are shareable.
@@ -1449,10 +1577,12 @@ if (bootParams.get('diff') && G.DIFFICULTIES[bootParams.get('diff')]) {
   document.getElementById('diff').value = bootParams.get('diff');
 }
 if (bootParams.get('holes') === '9') document.getElementById('holes').value = '9';
-if (bootParams.get('layout') === 'single') {
-  document.getElementById('layout').value = 'single';
+var bootLayout = bootParams.get('layout');
+if (bootLayout === 'single' || bootLayout === 'booklet') {
+  document.getElementById('layout').value = bootLayout;
   updatePageSize();
 }
+if (bootParams.get('players') === '2') document.getElementById('players').value = '2';
 rebuild();
 // ?play=1 deep-links straight into a round of the shared course.
 if (bootParams.get('play') === '1') startPlay();
