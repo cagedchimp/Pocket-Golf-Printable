@@ -49,10 +49,10 @@ plain HTML/CSS/JS served as static files.
   (4-up), `single` (one card per page), `booklet` (6×8 grid of cards),
   `continuous` (6×8, six holes packed onto one shared grid via
   `packSheet` — tight per-hole footprints skyline-packed with 90°
-  rotation and a rough gutter, so holes interlock at varied angles like
-  the printed pad; still rigid placement of self-solved holes, so
-  solvability is preserved and no two holes' playable cells touch,
-  both tested); each sets its own `@page` size.
+  a rough gutter, laid out as a walkable route — holes snake down one
+  column and up the next, each 180°-flipped so its cup sits by the next
+  hole's tee; still rigid placement of self-solved holes, so solvability
+  is preserved and no two holes' playable cells touch, both tested); each sets its own `@page` size.
   Holes now flow vertically or diagonally (tee/cup placement in
   `buildHoleAttempt`), not just top-to-bottom. The
   `players` param (1/2) adds P1/P2 to the scorecard and booklet footer

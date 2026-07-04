@@ -382,8 +382,19 @@ playCourse.holes.forEach((h, i) => {
     }
   }
   assert(leaks === 0, `packed sheet has ${leaks} cross-hole playable adjacencies`);
-  // at least one hole was rotated, for the varied-orientation look
-  assert(s.placements.some(p => p.rot % 2 === 1), 'expected some rotated holes');
+  // holes stay upright (portrait) for clean vertical routing
+  s.placements.forEach(p => assert(p.rot === 0 || p.rot === 2, `hole ${p.num}: unexpected rot ${p.rot}`));
+  // routing: each cup should sit near the next hole's tee. Within a
+  // column consecutive holes are stacked so gaps are short; allow the
+  // single column-to-column hop to be longer.
+  const hop = [];
+  for (let i = 0; i < s.placements.length - 1; i++) {
+    const a = s.placements[i].cup, b = s.placements[i + 1].tee;
+    hop.push(Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)));
+  }
+  const shortHops = hop.filter(d => d <= 9).length;
+  assert(shortHops >= hop.length - 1,
+    `routing: only ${shortHops}/${hop.length} cup→next-tee hops are short (${JSON.stringify(hop)})`);
 }
 
 // Determinism: same seed -> identical course

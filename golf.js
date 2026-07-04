@@ -890,136 +890,98 @@
   // Skyline (bottom-left) packing of rects into a strip of width GW.
   // Each item has padded dims pw×ph and may rotate; returns per-item
   // placement (packed-rect top-left + rotation) and the used height.
-  function skylinePack(items, GW) {
-    var sky = [{ x: 0, w: GW, y: 0 }];
-    function restY(x, w) {
-      var y = 0;
-      for (var i = 0; i < sky.length; i++) {
-        var s = sky[i];
-        if (s.x + s.w <= x || s.x >= x + w) continue;
-        if (s.y > y) y = s.y;
-      }
-      return y;
-    }
-    function place(x, w, top) {
-      var ns = [];
-      for (var i = 0; i < sky.length; i++) {
-        var s = sky[i];
-        if (s.x + s.w <= x || s.x >= x + w) { ns.push(s); continue; }
-        if (s.x < x) ns.push({ x: s.x, w: x - s.x, y: s.y });
-        if (s.x + s.w > x + w) ns.push({ x: x + w, w: s.x + s.w - (x + w), y: s.y });
-      }
-      ns.push({ x: x, w: w, y: top });
-      ns.sort(function (a, b) { return a.x - b.x; });
-      var merged = [ns[0]];
-      for (i = 1; i < ns.length; i++) {
-        var last = merged[merged.length - 1];
-        if (last.y === ns[i].y && last.x + last.w === ns[i].x) last.w += ns[i].w;
-        else merged.push(ns[i]);
-      }
-      sky = merged;
-    }
-    var out = [];
-    for (var it = 0; it < items.length; it++) {
-      var item = items[it], best = null;
-      var rots = item.rots || [0, 1];
-      var cands = rots.map(function (r) {
-        return r % 2 ? [item.ph, item.pw, 1] : [item.pw, item.ph, 0];
-      });
-      for (var c = 0; c < cands.length; c++) {
-        var w = cands[c][0], h = cands[c][1], rot = cands[c][2];
-        if (w > GW) continue;
-        for (var i = 0; i < sky.length; i++) {
-          var x = sky[i].x;
-          if (x + w > GW) continue;
-          var y = restY(x, w);
-          if (!best || y < best.y || (y === best.y && x < best.x)) {
-            best = { x: x, y: y, w: w, h: h, rot: rot, item: item };
-          }
-        }
-      }
-      if (!best) { // wider than the strip in both orientations: force it
-        best = { x: 0, y: restY(0, item.pw), w: item.pw, h: item.ph, rot: 0, item: item };
-      }
-      place(best.x, best.w, best.y + best.h);
-      out.push(best);
-    }
-    var GH = 0;
-    for (var s = 0; s < sky.length; s++) if (sky[s].y > GH) GH = sky[s].y;
-    return { placements: out, GH: GH };
+  // Global position of a hole's local cell (hx,hy) once its footprint
+  // is placed at content origin (cox,coy) with the given rotation.
+  function gpoint(cox, coy, fp, fw, fh, rot, hx, hy) {
+    var q = rotPt(hx - fp.x0, hy - fp.y0, fw, fh, rot);
+    return [cox + q[0], coy + q[1]];
+  }
+  // The 180° flip (rot 0 vs rot 2) that puts a hole's tee at the top of
+  // its slot (teeTop) or the bottom — both keep the footprint upright.
+  function vertRot(h, teeTop) {
+    var teeAbove = h.tee.y <= h.hole.y;
+    return (teeAbove === teeTop) ? 0 : 2;
   }
 
-  // Pack several holes onto one shared grid so their playable cells
-  // interlock with a continuous rough background between them — the
-  // organic printed-pad look. Each hole is placed rigidly (translate +
-  // 90° rotation) from its own solved frame, so solvability is
-  // preserved; the `margin` of rough padded around every footprint,
-  // packed without overlap, guarantees no two holes' playable cells
-  // ever touch. Deterministic (no RNG). Returns the same shape as
-  // composeSheet so the renderer is shared.
+  // Pack several holes onto one shared grid as a walkable route: holes
+  // snake down the first column and up the next, and each is flipped so
+  // its cup sits beside the following hole's tee — the way a real course
+  // routes green to next tee. Placement stays rigid (translate + 180°
+  // flip) from each hole's own solved frame, so solvability is
+  // preserved, and with a rough `margin` around every non-overlapping
+  // slot no two holes' playable cells ever touch. Deterministic.
+  // Returns the same shape as composeSheet so the renderer is shared.
   function packSheet(holes, opts) {
     opts = opts || {};
     var margin = opts.margin == null ? 1 : opts.margin;
-    var aspect = opts.aspect || (6 / 8);
+    var gap = opts.gap == null ? 2 : opts.gap;
+    var n = holes.length;
+    var cols = n <= 2 ? 1 : 2;
+    var perCol = Math.ceil(n / cols);
+
     var items = holes.map(function (h, i) {
       var fp = holeFootprint(h);
-      var fw = fp.x1 - fp.x0 + 1, fh = fp.y1 - fp.y0 + 1;
-      // The stroke floor forces every hole to be long (tall footprint),
-      // so left to itself the packer never rotates. Turn a deterministic
-      // third of the holes on their side for the varied-orientation look
-      // of the printed pad; the rest pack freely in either orientation.
-      var rots = (i % 3 === 1) ? [1] : [0, 1];
-      return { hole: h, fp: fp, fw: fw, fh: fh, pw: fw + 2 * margin, ph: fh + 2 * margin, rots: rots };
+      return { hole: h, idx: i, fp: fp, fw: fp.x1 - fp.x0 + 1, fh: fp.y1 - fp.y0 + 1 };
     });
-    var maxNarrow = 0, sumArea = 0, sumWide = 0;
-    items.forEach(function (it) {
-      maxNarrow = Math.max(maxNarrow, Math.min(it.pw, it.ph));
-      sumWide += Math.max(it.pw, it.ph);
-      sumArea += it.pw * it.ph;
-    });
-    var ideal = Math.round(Math.sqrt(sumArea / aspect));
-    var best = null;
-    for (var GW = Math.max(maxNarrow, ideal - 8); GW <= ideal + 12 && GW <= sumWide; GW++) {
-      var r = skylinePack(items, GW);
-      var err = Math.abs(GW / r.GH - aspect);
-      if (!best || err < best.err) best = { GW: GW, GH: r.GH, placements: r.placements, err: err };
+
+    // Lay columns left→right. Even columns walk downward (holes tee-top,
+    // cup-bottom); odd columns walk upward (tee-bottom, cup-top). In an
+    // upward column the physical top→bottom order is the reverse of the
+    // walk order, so the first-walked hole lands at the bottom, next to
+    // the previous column's finishing cup.
+    var placed = new Array(n);
+    var xCursor = 0;
+    for (var c = 0; c < cols; c++) {
+      var colItems = items.slice(c * perCol, (c + 1) * perCol);
+      if (!colItems.length) break;
+      var down = (c % 2 === 0);
+      var colW = 0;
+      colItems.forEach(function (it) {
+        it._rot = vertRot(it.hole, down);
+        colW = Math.max(colW, it.fw + 2 * margin);
+      });
+      var phys = down ? colItems : colItems.slice().reverse();
+      var yCursor = 0;
+      phys.forEach(function (it) {
+        placed[it.idx] = { it: it, rot: it._rot, ox: xCursor + margin, oy: yCursor + margin };
+        yCursor += it.fh + 2 * margin + gap;
+      });
+      xCursor += colW + gap;
     }
 
-    var gw = best.GW, gh = best.GH;
+    var gw = 0, gh = 0;
+    placed.forEach(function (p) {
+      gw = Math.max(gw, p.ox + p.it.fw + margin);
+      gh = Math.max(gh, p.oy + p.it.fh + margin);
+    });
+
     var cells = new Array(gw * gh).fill(ROUGH);
     var slope = new Array(gw * gh).fill(-1);
-    var owner = new Array(gw * gh).fill(0); // which hole placed a cell here
+    var owner = new Array(gw * gh).fill(0);
     var placements = [];
-    best.placements.forEach(function (b, n) {
-      var h = b.item.hole, fp = b.item.fp, rot = b.rot;
-      var fw = b.item.fw, fh = b.item.fh;
-      var cox = b.x + margin, coy = b.y + margin; // content origin, packed coords
-      function toGlobal(hx, hy) {
-        var p = rotPt(hx - fp.x0, hy - fp.y0, fw, fh, rot);
-        return [cox + p[0], coy + p[1]];
-      }
+    for (var idx = 0; idx < n; idx++) {
+      var p = placed[idx], it = p.it, h = it.hole, fp = it.fp, rot = p.rot;
       for (var y = fp.y0; y <= fp.y1; y++) {
         for (var x = fp.x0; x <= fp.x1; x++) {
-          var sk = y * W + x;
-          var t = h.cells[sk], sl = h.slope[sk];
+          var sk = y * W + x, t = h.cells[sk], sl = h.slope[sk];
           if (t === ROUGH && sl < 0) continue; // rough is the background
-          var g = toGlobal(x, y), gk = g[1] * gw + g[0];
+          var g = gpoint(p.ox, p.oy, fp, it.fw, it.fh, rot, x, y), gk = g[1] * gw + g[0];
           if (t !== ROUGH) cells[gk] = t;
           if (sl >= 0) slope[gk] = rotDir(sl, rot);
-          owner[gk] = n + 1;
+          owner[gk] = idx + 1;
         }
       }
-      var tee = toGlobal(h.tee.x, h.tee.y);
-      var cup = toGlobal(h.hole.x, h.hole.y);
-      var won = h.wonder ? toGlobal(h.wonder.x, h.wonder.y) : null;
+      var tee = gpoint(p.ox, p.oy, fp, it.fw, it.fh, rot, h.tee.x, h.tee.y);
+      var cup = gpoint(p.ox, p.oy, fp, it.fw, it.fh, rot, h.hole.x, h.hole.y);
+      var won = h.wonder ? gpoint(p.ox, p.oy, fp, it.fw, it.fh, rot, h.wonder.x, h.wonder.y) : null;
       placements.push({
-        hole: h, num: n + 1, rot: rot,
+        hole: h, num: idx + 1, rot: rot,
         tee: { x: tee[0], y: tee[1] },
         cup: { x: cup[0], y: cup[1] },
         wind: rotDir(h.wind, rot), windStr: h.windStr,
         wonder: won ? { key: h.wonder.key, x: won[0], y: won[1] } : null
       });
-    });
+    }
     return { w: gw, h: gh, cells: cells, slope: slope, owner: owner, placements: placements };
   }
 
