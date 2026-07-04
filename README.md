@@ -50,7 +50,9 @@ dependencies.
   Letter page, interlaced onto one shared dot grid like a real course
   map, fairways side by side with tree-line seams, an organic lake or
   river woven in, and each green ending near the next tee — with the
-  scorecard sharing the cover page, so every other page is golf.
+  scorecard sharing the cover page, so every other page is golf. A
+  blank page follows the cover so double-sided prints put the map
+  pages back-to-back.
 - **Players** — 1 or 2, in every layout. Two players adds P1/P2 stroke
   blanks to the hole cards, P1/P2 columns to the scorecard, and a
   mulligan track per player on the title card and booklet footers.
