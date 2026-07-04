@@ -847,6 +847,182 @@
     return { w: gw, h: gh, cells: cells, slope: slope, placements: placements };
   }
 
+  // --- rigid 90° rotation helpers (lattice- and move-set-preserving) --
+
+  // DIR index after one 90° clockwise turn (screen coords, y down):
+  // E→S, W→N, S→W, N→E, SE→SW, NE→SE, SW→NW, NW→NE.
+  var DIR_ROT90 = [2, 3, 1, 0, 6, 4, 7, 5];
+  function rotDir(d, rot) {
+    if (d < 0) return d;
+    rot = ((rot % 4) + 4) % 4;
+    for (var i = 0; i < rot; i++) d = DIR_ROT90[d];
+    return d;
+  }
+  // Rotate cell (ax, ay) inside an fw×fh box by rot×90° CW. Dims swap
+  // for odd rot; the point transform matches rotDir exactly.
+  function rotPt(ax, ay, fw, fh, rot) {
+    switch (((rot % 4) + 4) % 4) {
+      case 1: return [fh - 1 - ay, ax];
+      case 2: return [fw - 1 - ax, fh - 1 - ay];
+      case 3: return [ay, fw - 1 - ax];
+      default: return [ax, ay];
+    }
+  }
+  // Tight bounding box of a hole's meaningful cells — anything that
+  // isn't plain rough, plus slope arrows and any wonder. This footprint
+  // (far smaller than the full W×H frame) is what the packer arranges.
+  function holeFootprint(h) {
+    var x0 = W, y0 = H, x1 = -1, y1 = -1;
+    function grow(x, y) {
+      if (x < x0) x0 = x; if (y < y0) y0 = y;
+      if (x > x1) x1 = x; if (y > y1) y1 = y;
+    }
+    for (var y = 0; y < H; y++) {
+      for (var x = 0; x < W; x++) {
+        var k = y * W + x;
+        if (h.cells[k] !== ROUGH || h.slope[k] >= 0) grow(x, y);
+      }
+    }
+    if (h.wonder) grow(h.wonder.x, h.wonder.y);
+    return { x0: x0, y0: y0, x1: x1, y1: y1 };
+  }
+
+  // Skyline (bottom-left) packing of rects into a strip of width GW.
+  // Each item has padded dims pw×ph and may rotate; returns per-item
+  // placement (packed-rect top-left + rotation) and the used height.
+  function skylinePack(items, GW) {
+    var sky = [{ x: 0, w: GW, y: 0 }];
+    function restY(x, w) {
+      var y = 0;
+      for (var i = 0; i < sky.length; i++) {
+        var s = sky[i];
+        if (s.x + s.w <= x || s.x >= x + w) continue;
+        if (s.y > y) y = s.y;
+      }
+      return y;
+    }
+    function place(x, w, top) {
+      var ns = [];
+      for (var i = 0; i < sky.length; i++) {
+        var s = sky[i];
+        if (s.x + s.w <= x || s.x >= x + w) { ns.push(s); continue; }
+        if (s.x < x) ns.push({ x: s.x, w: x - s.x, y: s.y });
+        if (s.x + s.w > x + w) ns.push({ x: x + w, w: s.x + s.w - (x + w), y: s.y });
+      }
+      ns.push({ x: x, w: w, y: top });
+      ns.sort(function (a, b) { return a.x - b.x; });
+      var merged = [ns[0]];
+      for (i = 1; i < ns.length; i++) {
+        var last = merged[merged.length - 1];
+        if (last.y === ns[i].y && last.x + last.w === ns[i].x) last.w += ns[i].w;
+        else merged.push(ns[i]);
+      }
+      sky = merged;
+    }
+    var out = [];
+    for (var it = 0; it < items.length; it++) {
+      var item = items[it], best = null;
+      var rots = item.rots || [0, 1];
+      var cands = rots.map(function (r) {
+        return r % 2 ? [item.ph, item.pw, 1] : [item.pw, item.ph, 0];
+      });
+      for (var c = 0; c < cands.length; c++) {
+        var w = cands[c][0], h = cands[c][1], rot = cands[c][2];
+        if (w > GW) continue;
+        for (var i = 0; i < sky.length; i++) {
+          var x = sky[i].x;
+          if (x + w > GW) continue;
+          var y = restY(x, w);
+          if (!best || y < best.y || (y === best.y && x < best.x)) {
+            best = { x: x, y: y, w: w, h: h, rot: rot, item: item };
+          }
+        }
+      }
+      if (!best) { // wider than the strip in both orientations: force it
+        best = { x: 0, y: restY(0, item.pw), w: item.pw, h: item.ph, rot: 0, item: item };
+      }
+      place(best.x, best.w, best.y + best.h);
+      out.push(best);
+    }
+    var GH = 0;
+    for (var s = 0; s < sky.length; s++) if (sky[s].y > GH) GH = sky[s].y;
+    return { placements: out, GH: GH };
+  }
+
+  // Pack several holes onto one shared grid so their playable cells
+  // interlock with a continuous rough background between them — the
+  // organic printed-pad look. Each hole is placed rigidly (translate +
+  // 90° rotation) from its own solved frame, so solvability is
+  // preserved; the `margin` of rough padded around every footprint,
+  // packed without overlap, guarantees no two holes' playable cells
+  // ever touch. Deterministic (no RNG). Returns the same shape as
+  // composeSheet so the renderer is shared.
+  function packSheet(holes, opts) {
+    opts = opts || {};
+    var margin = opts.margin == null ? 1 : opts.margin;
+    var aspect = opts.aspect || (6 / 8);
+    var items = holes.map(function (h, i) {
+      var fp = holeFootprint(h);
+      var fw = fp.x1 - fp.x0 + 1, fh = fp.y1 - fp.y0 + 1;
+      // The stroke floor forces every hole to be long (tall footprint),
+      // so left to itself the packer never rotates. Turn a deterministic
+      // third of the holes on their side for the varied-orientation look
+      // of the printed pad; the rest pack freely in either orientation.
+      var rots = (i % 3 === 1) ? [1] : [0, 1];
+      return { hole: h, fp: fp, fw: fw, fh: fh, pw: fw + 2 * margin, ph: fh + 2 * margin, rots: rots };
+    });
+    var maxNarrow = 0, sumArea = 0, sumWide = 0;
+    items.forEach(function (it) {
+      maxNarrow = Math.max(maxNarrow, Math.min(it.pw, it.ph));
+      sumWide += Math.max(it.pw, it.ph);
+      sumArea += it.pw * it.ph;
+    });
+    var ideal = Math.round(Math.sqrt(sumArea / aspect));
+    var best = null;
+    for (var GW = Math.max(maxNarrow, ideal - 8); GW <= ideal + 12 && GW <= sumWide; GW++) {
+      var r = skylinePack(items, GW);
+      var err = Math.abs(GW / r.GH - aspect);
+      if (!best || err < best.err) best = { GW: GW, GH: r.GH, placements: r.placements, err: err };
+    }
+
+    var gw = best.GW, gh = best.GH;
+    var cells = new Array(gw * gh).fill(ROUGH);
+    var slope = new Array(gw * gh).fill(-1);
+    var owner = new Array(gw * gh).fill(0); // which hole placed a cell here
+    var placements = [];
+    best.placements.forEach(function (b, n) {
+      var h = b.item.hole, fp = b.item.fp, rot = b.rot;
+      var fw = b.item.fw, fh = b.item.fh;
+      var cox = b.x + margin, coy = b.y + margin; // content origin, packed coords
+      function toGlobal(hx, hy) {
+        var p = rotPt(hx - fp.x0, hy - fp.y0, fw, fh, rot);
+        return [cox + p[0], coy + p[1]];
+      }
+      for (var y = fp.y0; y <= fp.y1; y++) {
+        for (var x = fp.x0; x <= fp.x1; x++) {
+          var sk = y * W + x;
+          var t = h.cells[sk], sl = h.slope[sk];
+          if (t === ROUGH && sl < 0) continue; // rough is the background
+          var g = toGlobal(x, y), gk = g[1] * gw + g[0];
+          if (t !== ROUGH) cells[gk] = t;
+          if (sl >= 0) slope[gk] = rotDir(sl, rot);
+          owner[gk] = n + 1;
+        }
+      }
+      var tee = toGlobal(h.tee.x, h.tee.y);
+      var cup = toGlobal(h.hole.x, h.hole.y);
+      var won = h.wonder ? toGlobal(h.wonder.x, h.wonder.y) : null;
+      placements.push({
+        hole: h, num: n + 1, rot: rot,
+        tee: { x: tee[0], y: tee[1] },
+        cup: { x: cup[0], y: cup[1] },
+        wind: rotDir(h.wind, rot), windStr: h.windStr,
+        wonder: won ? { key: h.wonder.key, x: won[0], y: won[1] } : null
+      });
+    });
+    return { w: gw, h: gh, cells: cells, slope: slope, owner: owner, placements: placements };
+  }
+
   var api = {
     W: W, H: H,
     ROUGH: ROUGH, FAIRWAY: FAIRWAY, SAND: SAND, WATER: WATER, TREE: TREE, GREEN: GREEN,
@@ -857,6 +1033,10 @@
     generateCourse: generateCourse,
     generateHole: generateHole,
     composeSheet: composeSheet,
+    packSheet: packSheet,
+    rotDir: rotDir,
+    rotPt: rotPt,
+    holeFootprint: holeFootprint,
     solve: solve,
     resolveSlope: resolveSlope,
     resolveLanding: resolveLanding,

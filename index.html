@@ -1087,10 +1087,11 @@ function buildBooklet(sheets, course, players) {
   sheets.appendChild(solo(scoreCard(course, players)));
 }
 
-// Continuous 6×8 sheets: four holes to a shared dot grid (2×2), the
-// way the printed pad lays them out, with the two-player footer.
+// Continuous 6×8 sheets: several holes packed onto one shared dot grid
+// at varied angles with rough flowing between them, the way the printed
+// pad lays them out, plus the two-player footer.
 function buildContinuous(sheets, course, players) {
-  var PER = 4;
+  var PER = 6;
   function solo(quarter) {
     var sheet = document.createElement('div');
     sheet.className = 'sheet booklet solo';
@@ -1100,7 +1101,7 @@ function buildContinuous(sheets, course, players) {
   sheets.appendChild(solo(titleCard(course)));
   for (var i = 0; i < course.holes.length; i += PER) {
     var group = course.holes.slice(i, i + PER);
-    var comp = G.composeSheet(group, 2, 2, 1);
+    var comp = G.packSheet(group);
     var sheet = document.createElement('div');
     sheet.className = 'sheet booklet continuous';
     var board = document.createElement('div');

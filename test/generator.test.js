@@ -348,6 +348,44 @@ playCourse.holes.forEach((h, i) => {
   assert(leaks === 0, `composed sheet has ${leaks} cross-hole playable adjacencies`);
 }
 
+// packSheet: the organic (rotated, interlocking) sheet. Placements
+// must be deterministic, land tee/cup on the right terrain in-grid,
+// and — the load-bearing guarantee — no hole's playable cell may
+// border a different hole's playable cell (rough separates them).
+{
+  const course = golf.generateCourse('pack-check', 18, 'forest', 'tough');
+  const PLAY = new Set([golf.FAIRWAY, golf.SAND, golf.WATER, golf.TREE, golf.GREEN]);
+  const s = golf.packSheet(course.holes.slice(0, 6));
+  assert(s.placements.length === 6, 'expected 6 placements');
+  const s2 = golf.packSheet(course.holes.slice(0, 6));
+  assert(JSON.stringify(s.placements.map(p => [p.rot, p.tee, p.cup])) ===
+         JSON.stringify(s2.placements.map(p => [p.rot, p.tee, p.cup])),
+    'packSheet not deterministic');
+  s.placements.forEach(p => {
+    assert(p.tee.x >= 0 && p.tee.x < s.w && p.tee.y >= 0 && p.tee.y < s.h, `hole ${p.num}: tee off-grid`);
+    assert(p.cup.x >= 0 && p.cup.x < s.w && p.cup.y >= 0 && p.cup.y < s.h, `hole ${p.num}: cup off-grid`);
+    assert(s.cells[p.tee.y * s.w + p.tee.x] === golf.FAIRWAY, `hole ${p.num}: tee terrain wrong`);
+    assert(s.cells[p.cup.y * s.w + p.cup.x] === golf.GREEN, `hole ${p.num}: cup terrain wrong`);
+  });
+  let leaks = 0;
+  for (let gy = 0; gy < s.h; gy++) {
+    for (let gx = 0; gx < s.w; gx++) {
+      const k = gy * s.w + gx;
+      if (!PLAY.has(s.cells[k])) continue;
+      const me = s.owner[k];
+      [[1,0],[0,1]].forEach(([dx,dy]) => {
+        const nx = gx+dx, ny = gy+dy;
+        if (nx >= s.w || ny >= s.h) return;
+        const nk = ny*s.w+nx;
+        if (PLAY.has(s.cells[nk]) && s.owner[nk] && s.owner[nk] !== me) leaks++;
+      });
+    }
+  }
+  assert(leaks === 0, `packed sheet has ${leaks} cross-hole playable adjacencies`);
+  // at least one hole was rotated, for the varied-orientation look
+  assert(s.placements.some(p => p.rot % 2 === 1), 'expected some rotated holes');
+}
+
 // Determinism: same seed -> identical course
 const a = golf.generateCourse('determinism', 9);
 const b = golf.generateCourse('determinism', 9);

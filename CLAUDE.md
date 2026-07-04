@@ -47,9 +47,12 @@ plain HTML/CSS/JS served as static files.
   hides them on screen but `@media print` shows them again, so a user
   can print while playing. Three layouts (`layout` param): `sheet`
   (4-up), `single` (one card per page), `booklet` (6×8 grid of cards),
-  `continuous` (6×8, four holes composed onto one shared grid via
-  `composeSheet` — translate-only placement, so each hole's cells are
-  copied verbatim and stay solvable); each sets its own `@page` size.
+  `continuous` (6×8, six holes packed onto one shared grid via
+  `packSheet` — tight per-hole footprints skyline-packed with 90°
+  rotation and a rough gutter, so holes interlock at varied angles like
+  the printed pad; still rigid placement of self-solved holes, so
+  solvability is preserved and no two holes' playable cells touch,
+  both tested); each sets its own `@page` size.
   Holes now flow vertically or diagonally (tee/cup placement in
   `buildHoleAttempt`), not just top-to-bottom. The
   `players` param (1/2) adds P1/P2 to the scorecard and booklet footer
