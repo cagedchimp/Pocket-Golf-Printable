@@ -818,16 +818,23 @@ function windLabel(hole) {
   return new Array((hole.windStr || 1) + 1).join(WIND_ARROWS[hole.wind]);
 }
 
-function holeCard(hole, num) {
+function holeCard(hole, num, players) {
+  players = players || 1;
   var div = document.createElement('div');
   div.className = 'quarter hole-card';
   var wind = hole.wind >= 0 ? ' <span style="opacity:.65">· Wind ' + windLabel(hole) + '</span>' : '';
+  // Two players each get their own stroke blank; a solo card keeps the
+  // running-total blank instead.
+  var score = players > 1
+    ? '<span>P1 <span class="blank"></span>&thinsp;/ 6</span>' +
+      '<span>P2 <span class="blank"></span>&thinsp;/ 6</span>'
+    : '<span>Strokes: <span class="blank"></span>&thinsp;/ 6</span>' +
+      '<span>Total: <span class="blank wide"></span></span>';
   div.innerHTML =
     renderHoleSVG(hole) +
     '<div class="hole-footer">' +
     '<span>Hole ' + num + wind + '</span>' +
-    '<span>Strokes: <span class="blank"></span>&thinsp;/ 6</span>' +
-    '<span>Total: <span class="blank wide"></span></span>' +
+    score +
     '</div>';
   return div;
 }
@@ -1486,7 +1493,7 @@ function rebuild() {
     buildBooklet(sheets, course, players);
   } else {
     var quarters = [titleCard(course)];
-    course.holes.forEach(function (h, i) { quarters.push(holeCard(h, i + 1)); });
+    course.holes.forEach(function (h, i) { quarters.push(holeCard(h, i + 1, players)); });
     quarters.push(scoreCard(course, players));
 
     if (layout === 'single') {
