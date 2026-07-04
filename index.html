@@ -581,8 +581,32 @@ function terrainLayer(hole, type, fill) {
   return d ? '<path d="' + d + '" fill="' + fill + '"/>' : '';
 }
 
-function treeGlyph(x, y) {
+// Tree glyphs by biome: conifer (pine triangle), deciduous (leafy
+// crown), palm (curved trunk with drooping fronds).
+function treeGlyph(x, y, style) {
   var X = cx(x), Y = cy(y), s = U * 0.42;
+  if (style === 'deciduous') {
+    return '<g fill="#4a4f4d">' +
+      '<rect x="' + (X - 1.4) + '" y="' + (Y + 1.5) + '" width="2.8" height="' + (s * 0.75) + '"/>' +
+      '<circle cx="' + X + '" cy="' + (Y - 3.6) + '" r="4.4"/>' +
+      '<circle cx="' + (X - 3.4) + '" cy="' + (Y - 0.6) + '" r="3.3"/>' +
+      '<circle cx="' + (X + 3.4) + '" cy="' + (Y - 0.6) + '" r="3.3"/>' +
+      '</g>';
+  }
+  if (style === 'palm') {
+    var tx = X + 1.6, ty = Y - 3.2; // crown point of the curved trunk
+    var fronds = [[-6.5, -1.5], [-4.5, -4.5], [0.5, -6], [5, -4], [6.5, -0.5]];
+    var g = '<g stroke="#4a4f4d" fill="none" stroke-linecap="round">' +
+      '<path d="M' + (X - 2.4) + ' ' + (Y + 8.5) +
+        ' Q' + (X - 1.8) + ' ' + (Y + 1) + ' ' + tx + ' ' + ty + '" stroke-width="2.3"/>';
+    fronds.forEach(function (f) {
+      g += '<path d="M' + tx + ' ' + ty +
+        ' Q' + (tx + f[0] * 0.75) + ' ' + (ty + f[1]) + ' ' + (tx + f[0]) + ' ' + (ty + f[1] + 3.2) +
+        '" stroke-width="1.7"/>';
+    });
+    return g + '</g><circle cx="' + tx + '" cy="' + ty + '" r="1.3" fill="#4a4f4d"/>';
+  }
+  // conifer (default)
   return '<path fill="#4a4f4d" d="' +
     'M' + X + ' ' + (Y - s) +
     'L' + (X + s * 0.85) + ' ' + (Y + s * 0.55) +
@@ -718,7 +742,7 @@ function renderHoleSVG(hole) {
   for (y = 0; y < hole.h; y++) {
     for (x = 0; x < hole.w; x++) {
       var k = y * hole.w + x;
-      if (hole.cells[k] === G.TREE) s += treeGlyph(x, y);
+      if (hole.cells[k] === G.TREE) s += treeGlyph(x, y, hole.trees);
       else if (hole.slope[k] >= 0) s += slopeGlyph(x, y, hole.slope[k]);
     }
   }
@@ -757,7 +781,7 @@ function holeCard(hole, num) {
   return div;
 }
 
-function legendIcon(kind) {
+function legendIcon(kind, opt) {
   var s = svgOpen(22, 22, ' width="20" height="20"');
   switch (kind) {
     case 'fairway': s += '<rect x="2" y="2" width="18" height="18" rx="5" fill="#e4e7e5"/><circle cx="11" cy="11" r="1.6" fill="#a9aeac"/>'; break;
@@ -773,7 +797,21 @@ function legendIcon(kind) {
       s += wp.defs + '<rect x="2" y="2" width="18" height="18" rx="5" fill="' + wp.water + '"/><circle cx="11" cy="11" r="1.6" fill="#fff"/>';
       break;
     }
-    case 'tree':    s += '<path fill="#4a4f4d" d="M11 3 L18 15 L4 15 Z"/><rect x="10" y="15" width="2.4" height="4" fill="#4a4f4d"/>'; break;
+    case 'tree':
+      if (opt === 'deciduous') {
+        s += '<g fill="#4a4f4d"><rect x="9.8" y="12" width="2.4" height="6"/><circle cx="11" cy="7.5" r="4.6"/><circle cx="7.2" cy="10.5" r="3.4"/><circle cx="14.8" cy="10.5" r="3.4"/></g>';
+      } else if (opt === 'palm') {
+        s += '<g stroke="#4a4f4d" fill="none" stroke-linecap="round">' +
+          '<path d="M9 19 Q9.6 12 12.5 8.5" stroke-width="2"/>' +
+          '<path d="M12.5 8.5 Q7.5 7 5.5 10" stroke-width="1.6"/>' +
+          '<path d="M12.5 8.5 Q9.5 4 7 5" stroke-width="1.6"/>' +
+          '<path d="M12.5 8.5 Q13 3 15.5 4" stroke-width="1.6"/>' +
+          '<path d="M12.5 8.5 Q17 5.5 18 8.5" stroke-width="1.6"/>' +
+          '</g><circle cx="12.5" cy="8.5" r="1.2" fill="#4a4f4d"/>';
+      } else {
+        s += '<path fill="#4a4f4d" d="M11 3 L18 15 L4 15 Z"/><rect x="10" y="15" width="2.4" height="4" fill="#4a4f4d"/>';
+      }
+      break;
     case 'slope':   s += '<g stroke="#8d938f" stroke-width="2.2" stroke-linecap="round" fill="none"><line x1="5" y1="11" x2="17" y2="11"/><polyline points="13,6.5 17,11 13,15.5"/></g>'; break;
     case 'wind':    s += '<g stroke="#8d938f" stroke-width="1.8" stroke-linecap="round" fill="none"><path d="M3 8 h9 a2.2 2.2 0 1 0 -2.2 -3.4"/><path d="M3 14 h12 a2.2 2.2 0 1 1 -2.2 3.4"/></g>'; break;
     case 'tee':     s += '<circle cx="11" cy="11" r="5.5" fill="#3f4442"/>'; break;
@@ -787,7 +825,7 @@ function starString(rating) {
 }
 
 // Legend items, shared by the printed title card and the in-play card.
-function legendHTML() {
+function legendHTML(treeStyle) {
   return '<div class="item">' + legendIcon('tee') + 'Tee — start here</div>' +
     '<div class="item">' + legendIcon('cup') + 'Hole — get in!</div>' +
     '<div class="item">' + legendIcon('fairway') + 'Fairway (+1 roll)</div>' +
@@ -795,7 +833,7 @@ function legendHTML() {
     '<div class="item">' + legendIcon('rough') + 'Rough (exact roll)</div>' +
     '<div class="item">' + legendIcon('sand') + 'Sand (−1 roll)</div>' +
     '<div class="item">' + legendIcon('water') + 'Water (never land)</div>' +
-    '<div class="item">' + legendIcon('tree') + 'Trees (block hits)</div>' +
+    '<div class="item">' + legendIcon('tree', treeStyle) + 'Trees (block hits)</div>' +
     '<div class="item">' + legendIcon('slope') + 'Slope (ball rolls)</div>' +
     '<div class="item">' + legendIcon('wind') + 'Wind (4+ shots drift)</div>';
 }
@@ -805,7 +843,7 @@ function titleCard(course) {
   div.className = 'quarter title-card';
   var pips = '';
   for (var i = 0; i < course.mulligans; i++) pips += '<div class="pip"></div>';
-  var legend = legendHTML();
+  var legend = legendHTML(course.treeStyle);
   div.innerHTML =
     '<div>' +
       '<div class="flag">⛳</div>' +
@@ -1318,6 +1356,9 @@ function rebuild() {
   var theme = document.getElementById('theme').value;
   var course = G.generateCourse(seed, numHoles, theme, document.getElementById('diff').value);
   syncURL();
+  // The in-play legend shares the title card's items (tree species
+  // follows the theme).
+  document.getElementById('p-legend').innerHTML = legendHTML(course.treeStyle);
 
   var quarters = [titleCard(course)];
   course.holes.forEach(function (h, i) { quarters.push(holeCard(h, i + 1)); });
@@ -1373,8 +1414,6 @@ function randomSeed() {
     dsel.appendChild(opt);
   });
   dsel.value = 'standard';
-  // Fill the in-play legend card (shared with the printed title card).
-  document.getElementById('p-legend').innerHTML = legendHTML();
 })();
 
 document.getElementById('random').addEventListener('click', function () {

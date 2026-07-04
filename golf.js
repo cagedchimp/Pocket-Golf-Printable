@@ -293,7 +293,7 @@
   // `slopeChance` the odds a hole gets slope runs at all.
   var THEMES = {
     classic: {
-      label: 'Classic',
+      label: 'Classic', trees: 'deciduous',
       creek: 0.35, creekWide: 0.3,
       pondN: [0, 1], pondSize: [6, 12],
       treeN: [2, 4], treeSize: [4, 10],
@@ -302,7 +302,7 @@
       nouns: null
     },
     forest: {
-      label: 'Deep Forest',
+      label: 'Deep Forest', trees: 'conifer',
       creek: 0.25, creekWide: 0.2,
       pondN: [0, 1], pondSize: [4, 8],
       treeN: [5, 8], treeSize: [6, 14],
@@ -311,7 +311,7 @@
       nouns: ['Pines', 'Timber', 'Cedars', 'Redwoods', 'Thicket', 'Grove', 'Woods', 'Hollow']
     },
     lakeside: {
-      label: 'Lakeside',
+      label: 'Lakeside', trees: 'deciduous',
       creek: 0.75, creekWide: 0.5,
       pondN: [1, 2], pondSize: [10, 20],
       treeN: [1, 2], treeSize: [3, 7],
@@ -320,7 +320,7 @@
       nouns: ['Lakes', 'Shores', 'Coves', 'Marsh', 'Waters', 'Inlet', 'Bayou', 'Springs']
     },
     dunes: {
-      label: 'Sandy Dunes',
+      label: 'Sandy Dunes', trees: 'palm',
       creek: 0.1, creekWide: 0.2,
       pondN: [0, 1], pondSize: [4, 7],
       treeN: [0, 1], treeSize: [3, 5],
@@ -329,7 +329,7 @@
       nouns: ['Dunes', 'Sands', 'Links', 'Flats', 'Barrens', 'Shells', 'Salt Flats']
     },
     highlands: {
-      label: 'Highlands',
+      label: 'Highlands', trees: 'conifer',
       creek: 0.35, creekWide: 0.2,
       pondN: [0, 1], pondSize: [5, 10],
       treeN: [1, 3], treeSize: [3, 8],
@@ -711,7 +711,11 @@
     var name = pick(rng, NAME_A) + ' ' + pick(rng, nounPool) + ' ' + pick(rng, NAME_C);
 
     var holes = [];
-    for (var i = 0; i < numHoles; i++) holes.push(generateHole(rng, theme, diff));
+    for (var i = 0; i < numHoles; i++) {
+      var h = generateHole(rng, theme, diff);
+      h.trees = theme.trees; // biome's tree species, for rendering
+      holes.push(h);
+    }
 
     // Wind comes from its own RNG stream so hole layouts (drawn from
     // the main stream) are untouched by this feature. A windy hole
@@ -783,7 +787,7 @@
       name: name, seed: String(seedStr), theme: themeKey,
       themeLabel: theme.label, holes: holes, par: numHoles * 6,
       difficulty: diffKey, difficultyLabel: diff.label,
-      mulligans: diff.mulligans, rating: rating
+      mulligans: diff.mulligans, rating: rating, treeStyle: theme.trees
     };
   }
 
