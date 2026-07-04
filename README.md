@@ -83,7 +83,9 @@ terrain legend) → one hole per quarter page → a scorecard.
 ## How to play (short version)
 
 Roll a d6 and move that many dots in a straight line, in any of the 8
-directions. Draw the line, mark the ball. Par is 6 on every hole.
+directions. Draw the line, mark the ball. Each hole carries its own
+par — the measured perfect line plus two — printed on its card and on
+the scorecard, so tough holes are worth more strokes.
 
 | Terrain | Effect |
 | --- | --- |
@@ -116,7 +118,8 @@ lurking in a pond. Spot it and tap it for a free mulligan.
 Every generated hole is verified by a solver (`golf.js`) that simulates
 the movement rules — tree blocking, water carries, sand penalties,
 slope rolls — and only holes finishable in 3–6 optimal strokes are
-kept, so par 6 is always achievable.
+kept. Each hole's par is that optimum plus two, so par is always
+comfortably achievable.
 
 Run the generator checks headlessly:
 

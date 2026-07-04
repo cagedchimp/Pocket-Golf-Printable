@@ -584,7 +584,7 @@
           Fairway adds +1 and lets you fly over trees; sand takes &minus;1; water and
           trees can be flown over but never landed on. A putt (1 space, or 1&ndash;2 on
           the green) is always allowed instead of the roll. Slope arrows carry the
-          ball after it lands. Par 6 every hole; mulligans re-roll the die.<br><br>
+          ball after it lands. Par varies by hole; mulligans re-roll the die.<br><br>
           <b>Clubs</b> (pick before rolling): Driver adds +1 but needs the tee or
           fairway; Iron moves exactly your swing; Wedge moves half the roll
           (rounded up), flies over trees from anywhere, and ignores wind and the
@@ -981,14 +981,14 @@ function holeCard(hole, num, players) {
   // Two players each get their own stroke blank; a solo card keeps the
   // running-total blank instead.
   var score = players > 1
-    ? '<span>P1 <span class="blank"></span>&thinsp;/ 6</span>' +
-      '<span>P2 <span class="blank"></span>&thinsp;/ 6</span>'
-    : '<span>Strokes: <span class="blank"></span>&thinsp;/ 6</span>' +
+    ? '<span>P1 <span class="blank"></span>&thinsp;/ ' + hole.par + '</span>' +
+      '<span>P2 <span class="blank"></span>&thinsp;/ ' + hole.par + '</span>'
+    : '<span>Strokes: <span class="blank"></span>&thinsp;/ ' + hole.par + '</span>' +
       '<span>Total: <span class="blank wide"></span></span>';
   div.innerHTML =
     renderHoleSVG(hole) +
     '<div class="hole-footer">' +
-    '<span>Hole ' + num + wind + '</span>' +
+    '<span>Hole ' + num + ' &middot; Par ' + hole.par + wind + '</span>' +
     score +
     '</div>';
   return div;
@@ -1077,7 +1077,7 @@ function titleCard(course, players) {
       '<div class="mulligans' + (players > 1 ? ' two' : '') + '"><div class="label">Mulligans</div>' + tracks + '</div>' +
       '<div class="legend">' + legend + '</div>' +
     '</div>' +
-    '<div class="credit">Move 1&ndash;6 spaces (d6) in a straight line, 8 directions. Par 6 every hole.<br>' +
+    '<div class="credit">Move 1&ndash;6 spaces (d6) in a straight line, 8 directions. Each hole\'s par is printed on its card.<br>' +
     'On the green, putts may move 1 or 2 spaces.<br>' +
     'Declare a club before rolling &mdash; <b>Driver</b>: +1 space, tee &amp; fairway only &middot; ' +
     '<b>Iron</b>: exactly as rolled &middot; <b>Wedge</b>: half the roll (rounded up), ' +
@@ -1098,11 +1098,13 @@ function scoreCard(course, players) {
   function table(from, to, sumLabel) {
     var head = '<tr><th>Hole</th><th>Par</th>' +
       (players > 1 ? '<th>P1</th><th>P2</th>' : '<th>Strokes</th>') + '</tr>';
-    var rows = '';
+    var rows = '', parSum = 0;
     for (var i = from; i <= to; i++) {
-      rows += '<tr><td>' + i + '</td><td>6</td>' + strokeCols + '</tr>';
+      var hp = course.holes[i - 1].par;
+      parSum += hp;
+      rows += '<tr><td>' + i + '</td><td>' + hp + '</td>' + strokeCols + '</tr>';
     }
-    rows += '<tr class="sum"><td>' + sumLabel + '</td><td>' + (to - from + 1) * 6 + '</td>' + strokeCols + '</tr>';
+    rows += '<tr class="sum"><td>' + sumLabel + '</td><td>' + parSum + '</td>' + strokeCols + '</tr>';
     return '<table>' + head + rows + '</table>';
   }
 
@@ -1230,9 +1232,9 @@ function svgNode(name, attrs) {
 
 function setMsg(html) { el('p-msg').innerHTML = html; }
 
-function scoreName(strokes) {
+function scoreName(strokes, par) {
   if (strokes === 1) return 'Hole-in-one!!';
-  var d = strokes - 6;
+  var d = strokes - par;
   if (d <= -4) return 'Condor!?';
   if (d === -3) return 'Albatross!';
   if (d === -2) return 'Eagle!';
@@ -1299,7 +1301,7 @@ function renderBoard() {
   var board = el('p-board');
   var hole = curHole();
   var head = '<div class="board-head">' +
-    '<span>Hole ' + (play.hi + 1) + ' of ' + play.course.holes.length + ' · Par 6</span>' +
+    '<span>Hole ' + (play.hi + 1) + ' of ' + play.course.holes.length + ' · Par ' + hole.par + '</span>' +
     (hole.wind >= 0
       ? '<span class="wind-chip">💨 Wind ' + windLabel(hole) + '</span>'
       : '<span class="wind-chip calm">no wind</span>') +
@@ -1475,7 +1477,7 @@ function applyMove(m) {
 function holeOut() {
   play.over = true;
   play.scores[play.hi] = play.strokes;
-  setMsg('<b>' + scoreName(play.strokes) + '</b> — in the cup in ' + play.strokes +
+  setMsg('<b>' + scoreName(play.strokes, curHole().par) + '</b> — in the cup in ' + play.strokes +
     (play.strokes === 1 ? ' stroke.' : ' strokes.'));
   var next = el('p-next');
   next.hidden = false;
@@ -1587,7 +1589,7 @@ function showSummary() {
 function updateHUD() {
   var n = play.course.holes.length;
   var hole = curHole();
-  el('p-holeinfo').textContent = 'Hole ' + (play.hi + 1) + ' of ' + n + ' · Par 6' +
+  el('p-holeinfo').textContent = 'Hole ' + (play.hi + 1) + ' of ' + n + ' · Par ' + hole.par +
     (hole.wind >= 0 ? ' · Wind ' + windLabel(hole) : '');
   el('p-strokes').textContent = play.strokes;
   var total = play.scores.reduce(function (a, b) { return a + (b || 0); }, 0);

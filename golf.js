@@ -20,7 +20,8 @@
  *  - Par is 6 on every hole. A putt (move 1) is always allowed.
  *
  * Every generated hole is verified with a BFS solver to be finishable
- * in 3-6 strokes, so par 6 is always achievable.
+ * in 3-6 strokes; each hole's par is that optimum + 2, so par is
+ * always comfortably achievable.
  */
 (function (global) {
   'use strict';
@@ -791,6 +792,11 @@
       h.windStr = 0;
     });
 
+    // Par per hole comes from the measured optimum (wind included):
+    // optimal + 2. Derived from solve() results already in hand — no
+    // RNG draws — so hole layouts stay seed-stable.
+    holes.forEach(function (h) { h.par = h.best + 2; });
+
     // Maybe hide a wonder on one hole (free mulligan when spotted).
     var wonderKey = rollWonder(rng, themeKey);
     if (wonderKey) {
@@ -830,7 +836,8 @@
 
     return {
       name: name, seed: String(seedStr), theme: themeKey,
-      themeLabel: theme.label, holes: holes, par: numHoles * 6,
+      themeLabel: theme.label, holes: holes,
+      par: holes.reduce(function (a, h) { return a + h.par; }, 0),
       difficulty: diffKey, difficultyLabel: diff.label,
       mulligans: diff.mulligans, rating: rating, treeStyle: theme.trees
     };
