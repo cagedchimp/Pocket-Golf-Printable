@@ -349,7 +349,7 @@
       pondN: [0, 1], pondSize: [5, 10],
       treeN: [1, 3], treeSize: [3, 8],
       greenSandN: [1, 2], fwSandN: [0, 1], sandSize: [2, 4],
-      slopeChance: 1.0, slopeRuns: [2, 4],
+      slopeChance: 1.0, slopeRuns: [4, 7], slopeLen: [3, 6],
       nouns: ['Highlands', 'Bluffs', 'Ridge', 'Knolls', 'Heights', 'Fells', 'Crags', 'Moors']
     }
   };
@@ -662,13 +662,16 @@
     }
 
     // Slopes: short runs of arrows laid perpendicular to their
-    // pointing direction, like a bank the ball rolls down.
+    // pointing direction, like a bank the ball rolls down. Themes may
+    // stretch the runs with `slopeLen` (same single draw either way,
+    // so themes without it generate identically).
     if (rng() < theme.slopeChance) {
+      var slopeLen = theme.slopeLen || [2, 4];
       var nRuns = theme.slopeRuns[0] + ri(rng, theme.slopeRuns[1] - theme.slopeRuns[0] + 1);
       for (var run = 0; run < nRuns; run++) {
         var sd = ri(rng, 4);
         var sx = 1 + ri(rng, W - 2), sy = 2 + ri(rng, H - 4);
-        var len = 2 + ri(rng, 3);
+        var len = slopeLen[0] + ri(rng, slopeLen[1] - slopeLen[0] + 1);
         for (i = 0; i < len; i++) {
           if (!inBounds(sx, sy)) break;
           var kk = idx(sx, sy);
