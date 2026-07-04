@@ -48,10 +48,12 @@ plain HTML/CSS/JS served as static files.
 - **Browser + Node**: `golf.js` must keep working in both environments.
 - **Print layout**: the printable sheets must stay intact — play mode
   hides them on screen but `@media print` shows them again, so a user
-  can print while playing. Four layouts (`layout` param), each setting
-  its own `@page` size: `sheet` (4-up quarters), `single` (one card per
-  page), `booklet` (the course map on fixed 6×8 pad pages), and `continuous` — several holes
-  (6 on a 6×8 pad, 9 on Letter/A4) composed onto one shared dot grid by
+  can print while playing. Four layouts (`layout` param), each with a
+  fixed `@page` size — there is no paper picker: `sheet` (4-up
+  quarters on Letter), `single` (one 4.25×5.5in card per page),
+  `booklet` (the course map on 6×8 pad pages, 6 holes each), and
+  `continuous` (Letter, 9 holes) — several holes
+  composed onto one shared dot grid by
   `packSheet()`: tight per-hole footprints placed rigidly (translate +
   90°-multiple rotation of self-solved holes, so solvability transfers),
   seeded as an aspect-matched boustrophedon grid, then compacted
@@ -70,9 +72,9 @@ plain HTML/CSS/JS served as static files.
   and tested. The renderer clips dots to a dilated content mask so the
   course has an organic outline. Holes flow vertically or diagonally
   (tee/cup placement in `buildHoleAttempt`), not just top-to-bottom.
-  The `players` param (1/2) adds P1/P2 to the scorecard, hole cards,
-  and booklet footer — printed sheets only, on-screen play stays
-  single-player.
+  The `players` param (1/2) works in every layout: P1/P2 on the
+  scorecard, hole cards, title-card mulligan tracks, and booklet
+  footer — printed sheets only, on-screen play stays single-player.
 - **Mobile**: play mode is touch-first — keep tap targets generous and
   the roll controls pinned to the bottom on narrow screens.
 

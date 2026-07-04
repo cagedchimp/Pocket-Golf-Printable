@@ -3,7 +3,7 @@
 Generate printable dot-grid golf courses in the style of
 [Paper Apps™ GOLF](https://gladdendesign.com/) (created by Tom Brinton).
 Open the app, roll up a fresh 9- or 18-hole course, print it 4-up on
-Letter or A4, cut the sheets into quarters, and hit the links with a
+Letter, cut the sheets into quarters, and hit the links with a
 pencil and a d6 — or hit **▶ Play** and play the same course right in
 the browser with a virtual die.
 
@@ -42,18 +42,17 @@ dependencies.
   rating on its title page. Try
   [Lakeside on Tough](https://cagedchimp.github.io/Pocket-Golf-Printable/?seed=demo-course&theme=lakeside&diff=tough&holes=18).
 - **Holes** — 9 or 18.
-- **Layout** — *4-up cards* (four cards per Letter/A4 page), *Single
-  cards* (one pocket-size card per page, for PDF export), *Pad
-  booklet (6×8)* — the course map on fixed 6×8 pad pages, the
-  print-and-staple pocket format — or *Course map*: the holes interlaced onto one
-  shared dot grid like a real course map, fairways side by side with
-  tree-line seams, an organic lake or river woven in, and each green
-  ending near the next tee.
-- **Players** — 1 or 2. Two players adds P1/P2 stroke columns to the
-  scorecard and a mulligan track per player on the booklet footer.
-- **Paper** — Letter, A4, or a 6×8 pad. In the Course map layout the
-  paper size sets the holes per sheet: nine on Letter/A4, six on a 6×8
-  pad.
+- **Layout** — each layout prints at its natural page size, no paper
+  picker needed: *4-up cards* (four cards per Letter page), *Single
+  cards* (one pocket-size 4¼×5½″ card per page, for PDF export), *Pad
+  booklet (6×8)* — the course map on 6×8 pad pages, six holes each,
+  the print-and-staple pocket format — or *Course map*: nine holes per
+  Letter page, interlaced onto one shared dot grid like a real course
+  map, fairways side by side with tree-line seams, an organic lake or
+  river woven in, and each green ending near the next tee.
+- **Players** — 1 or 2, in every layout. Two players adds P1/P2 stroke
+  blanks to the hole cards, P1/P2 columns to the scorecard, and a
+  mulligan track per player on the title card and booklet footers.
 - **▶ Play** — play the course on screen instead of (or before)
   printing it. Roll the virtual d6, then tap one of the highlighted
   spots to hit the ball there: solid rings are your full shot
