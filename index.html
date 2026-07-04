@@ -237,6 +237,29 @@
     max-height: calc(100dvh - 190px);
     touch-action: manipulation;
   }
+  .board-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 8px 6px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .02em;
+  }
+  .board-head .wind-chip {
+    padding: 3px 11px;
+    border-radius: 999px;
+    background: var(--ink);
+    color: #fff;
+    letter-spacing: .04em;
+  }
+  .board-head .wind-chip.calm {
+    background: var(--fairway);
+    color: var(--ink);
+    opacity: .7;
+    font-weight: 600;
+  }
   .play-board svg .target { cursor: pointer; }
 
   .play-side {
@@ -921,7 +944,14 @@ function beginHole(i) {
 
 function renderBoard() {
   var board = el('p-board');
-  board.innerHTML = renderHoleSVG(curHole());
+  var hole = curHole();
+  var head = '<div class="board-head">' +
+    '<span>Hole ' + (play.hi + 1) + ' of ' + play.course.holes.length + ' · Par 6</span>' +
+    (hole.wind >= 0
+      ? '<span class="wind-chip">💨 Wind ' + windLabel(hole) + '</span>'
+      : '<span class="wind-chip calm">no wind</span>') +
+    '</div>';
+  board.innerHTML = head + renderHoleSVG(hole);
   play.svg = board.querySelector('svg');
   play.overlay = svgNode('g', {});
   play.svg.appendChild(play.overlay);
