@@ -44,12 +44,17 @@ let wonderCourses = 0;
 for (let s = 0; s < SEEDS; s++) {
   const course = golf.generateCourse('test-seed-' + s, 18);
   assert(course.holes.length === 18, `seed ${s}: expected 18 holes`);
+  assert(course.par === course.holes.reduce((a, h) => a + h.par, 0),
+    `seed ${s}: course par ${course.par} != sum of hole pars`);
   wonderCourses += checkWonder(course, `seed ${s}`);
   course.holes.forEach((h, i) => {
     const best = golf.solve(h);
     assert(best !== null, `seed ${s} hole ${i + 1}: unsolvable`);
     assert(best >= 3 && best <= 6, `seed ${s} hole ${i + 1}: best=${best} outside 3-6`);
     bestCounts[best] = (bestCounts[best] || 0) + 1;
+
+    // Par is the wind-aware optimum + 2, and the course par is the sum.
+    assert(h.par === h.best + 2, `seed ${s} hole ${i + 1}: par=${h.par}, best=${h.best}`);
 
     const teeCell = h.cells[h.tee.y * h.w + h.tee.x];
     const cupCell = h.cells[h.hole.y * h.w + h.hole.x];
