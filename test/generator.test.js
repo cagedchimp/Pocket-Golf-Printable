@@ -506,6 +506,35 @@ playCourse.holes.forEach((h, i) => {
         `${theme} mid-${s}: sheet not playable as printed`);
     }
   }
+
+  // Wonders survive composition: on packed + decorated sheets the
+  // wonder keeps its habitat cell — neighbours' terrain must not blit
+  // over it when holes interlace, and decoration must not paint it.
+  let wondersComposed = 0;
+  for (let s = 0; s < 30 && wondersComposed < 6; s++) {
+    for (const theme of ['classic', 'lakeside', 'forest']) {
+      const course = golf.generateCourse('w-comp-' + s, 18, theme);
+      const wi = course.holes.findIndex(h => h.wonder);
+      if (wi < 0) continue;
+      wondersComposed++;
+      for (const per of [6, 9]) {
+        const start = Math.floor(wi / per) * per;
+        const comp = golf.packSheet(course.holes.slice(start, start + per),
+          { aspect: per === 6 ? 6 / 8 : 8.5 / 11 });
+        golf.decorateSheet(comp, {
+          rng: golf.mulberry32(golf.xmur3(course.seed + '|' + course.theme + '|deco|' + start)()),
+          themeKey: course.theme,
+        });
+        const p = comp.placements[wi - start];
+        assert(p.wonder, `w-comp-${s}/${theme} per-${per}: wonder lost in packSheet`);
+        const habitat = course.holes[wi].wonder.key === 'kraken' ? golf.WATER : golf.ROUGH;
+        const t = comp.cells[p.wonder.y * comp.w + p.wonder.x];
+        assert(t === habitat,
+          `w-comp-${s}/${theme} per-${per}: wonder cell overwritten (terrain ${t})`);
+      }
+    }
+  }
+  assert(wondersComposed >= 4, `too few wonder courses composed (${wondersComposed})`);
 }
 
 // Determinism: same seed -> identical course

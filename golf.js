@@ -1051,6 +1051,11 @@
           out.push(q);
         }
       }
+      // The wonder hides on plain rough, but a neighbour's fairway must
+      // not blit over it when holes interlace — guard it like a
+      // playable cell so the 1-cell seam applies to it too.
+      var wo = it.hole.wonder;
+      if (wo) out.push(rotPt(wo.x - fp.x0, wo.y - fp.y0, it.fw, it.fh, p.rot));
       p._mask = out;
       return out;
     }
