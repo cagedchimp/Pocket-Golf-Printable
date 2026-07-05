@@ -110,7 +110,7 @@ page. Windy holes (arrows by the hole number — one space of drift per
 arrow) push shots of 4+ spaces downwind after they land, so aim
 upwind or loft a wedge. Rumor has it
 a *wonder* hides on one hole in about a third of courses — usually
-Bigfoot's footprints or a garden gnome, but sometimes an old castle, a
+Bigfoot himself or a garden gnome, but sometimes an old castle, a
 UFO, or (only on lakeside courses, and rarely even there) the kraken
 lurking in a pond. Spot it and tap it for a free mulligan.
 
